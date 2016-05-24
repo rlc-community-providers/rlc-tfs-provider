@@ -18,4 +18,17 @@
         <property name="servicePassword" value="${tfs_servicepassword}"/>
         <property name="requestResultLimit" value="${request_result_limit}"/>
     </bean>
+
+    <bean id="executionProvider" class="com.serena.rlc.provider.tfs.TFSExecutionProvider" scope="prototype">
+        <property name="providerName" value ="${execution_provider_name}"/>
+        <property name="providerDescription" value ="${execution_provider_description}"/>
+        <property name="tfsUrl" value="${tfs_url}"/>
+        <property name="tfsApiVersion" value="${tfs_api_version}"/>
+        <property name="vsrmUrl" value="${vsrm_url}"/>
+        <property name="vsrmApiVersion" value="${vsrm_api_version}"/>
+        <property name="tfsCollection" value="${tfs_collection}"/>
+        <property name="serviceUser" value="${tfs_serviceuser}"/>
+        <property name="servicePassword" value="${tfs_servicepassword}"/>
+        <property name="waitForCallback" value = "${execution_action_wait_for_callback}"/>
+    </bean>
 </beans>

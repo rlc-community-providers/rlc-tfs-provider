@@ -7,7 +7,7 @@
     <artifactId>rlc-tfs-provider</artifactId>
     <version>6.1.0.0-SNAPSHOT</version>
 
-    <name>Serena RLC - Microsoft TFS Provider</name>
+    <name>Serena RLC Microsoft TFS Provider</name>
     <url>http://www.serena.com</url>
 
 	<properties>

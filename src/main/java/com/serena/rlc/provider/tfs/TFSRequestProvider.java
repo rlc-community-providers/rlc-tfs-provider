@@ -25,7 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.serena.rlc.provider.tfs.exception.TFSClientException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.StringTokenizer;
 
 /**
  * TFS Request Provider
@@ -52,7 +51,7 @@ public class TFSRequestProvider extends BaseRequestProvider {
     
     @ConfigProperty(name = "request_provider_name", displayName = "Request Provider Name",
             description = "provider name",
-            defaultValue = "TFS Provider",
+            defaultValue = "TFS Work Item Provider",
             dataType = DataType.TEXT)
     private String providerName;
 
@@ -245,12 +244,12 @@ public class TFSRequestProvider extends BaseRequestProvider {
             if (requests != null) {
                 ProviderInfo pReqInfo;
                 for (WorkItem request : requests) {
-                    pReqInfo = new ProviderInfo(request.getId(), request.getName(), request.getType(), request.getName(), request.getUrl());
-                    pReqInfo.setId(request.getId());
-                    pReqInfo.setName(request.getName());
-                    pReqInfo.setTitle(request.getName());
+                    pReqInfo = new ProviderInfo(request.getId().toString(), request.getTitle(), request.getType(), request.getTitle(), request.getUrl());
+                    pReqInfo.setId(request.getId().toString());
+                    pReqInfo.setName(request.getTitle());
+                    pReqInfo.setTitle(request.getTitle());
                     if (StringUtils.isEmpty(request.getDescription())) {
-                        pReqInfo.setDescription(request.getName());
+                        pReqInfo.setDescription(request.getTitle());
                     } else {
                         pReqInfo.setDescription(request.getDescription());
                     }
@@ -258,12 +257,12 @@ public class TFSRequestProvider extends BaseRequestProvider {
 
                     List<Field> fields = new ArrayList<>();
                     addField(fields, "project", "Project", request.getProject());
-                    addField(fields, "owner", "Owner", request.getOwner());
+                    addField(fields, "owner", "Owner", request.getAssignedTo());
                     addField(fields, "status", "Status", request.getState());
                     addField(fields, "severity", "Severity", request.getSeverity());
-                    addField(fields, "creator", "Creator", request.getCreator());
+                    addField(fields, "creator", "Creator", request.getCreatedBy());
                     addField(fields, "dateCreated", "Date Created", request.getDateCreated());
-                    addField(fields, "lastUpdated", "Last Updated", request.getLastUpdated());
+                    addField(fields, "lastUpdated", "Last Updated", request.getDateChanged());
 
                     pReqInfo.setProperties(fields);
                     list.add(pReqInfo);
@@ -294,12 +293,12 @@ public class TFSRequestProvider extends BaseRequestProvider {
                 throw new ProviderException("Unable to find request: " + property.getValue());
             }
 
-            ProviderInfo pReqInfo = new ProviderInfo(request.getId(), request.getName(), request.getType(), request.getName(), request.getUrl());
-            pReqInfo.setId(request.getId());
-            pReqInfo.setName(request.getName());
-            pReqInfo.setTitle(request.getName());
+            ProviderInfo pReqInfo = new ProviderInfo(request.getId().toString(), request.getTitle(), request.getType(), request.getTitle(), request.getUrl());
+            pReqInfo.setId(request.getId().toString());
+            pReqInfo.setName(request.getTitle());
+            pReqInfo.setTitle(request.getTitle());
             if (StringUtils.isEmpty(request.getDescription())) {
-                pReqInfo.setDescription(request.getName());
+                pReqInfo.setDescription(request.getTitle());
             } else {
                 pReqInfo.setDescription(request.getDescription());
             }
@@ -307,12 +306,12 @@ public class TFSRequestProvider extends BaseRequestProvider {
 
             List<Field> fields = new ArrayList<>();
             addField(fields, "project", "Project", request.getProject());
-            addField(fields, "owner", "Owner", request.getOwner());
+            addField(fields, "owner", "Owner", request.getAssignedTo());
             addField(fields, "status", "Status", request.getState());
             addField(fields, "severity", "Severity", request.getSeverity());
-            addField(fields, "creator", "Creator", request.getCreator());
+            addField(fields, "creator", "Creator", request.getCreatedBy());
             addField(fields, "dateCreated", "Date Created", request.getDateCreated());
-            addField(fields, "lastUpdated", "Last Updated", request.getLastUpdated());
+            addField(fields, "lastUpdated", "Last Updated", request.getDateChanged());
 
             pReqInfo.setProperties(fields);
             return pReqInfo;
@@ -356,14 +355,14 @@ public class TFSRequestProvider extends BaseRequestProvider {
 
             List<FieldValueInfo> values = new ArrayList<>();
             FieldValueInfo value;
-            for (TFSObject tfsProj : tfsProjects) {
+            for (Project tfsProj : tfsProjects) {
 
-                value = new FieldValueInfo(tfsProj.getId(), tfsProj.getName());
-                if (tfsProj.getId() == null || StringUtils.isEmpty(tfsProj.getId())) {
-                    value.setId(tfsProj.getName());
+                value = new FieldValueInfo(tfsProj.getProjectId(), tfsProj.getTitle());
+                if (tfsProj.getProjectId() == null || StringUtils.isEmpty(tfsProj.getProjectId())) {
+                    value.setId(tfsProj.getTitle());
                 }
 
-                value.setDescription(tfsProj.getName());
+                value.setDescription(tfsProj.getTitle());
                 values.add(value);
             }
 
@@ -396,14 +395,14 @@ public class TFSRequestProvider extends BaseRequestProvider {
 
             List<FieldValueInfo> values = new ArrayList<>();
             FieldValueInfo value;
-            for (TFSObject tfsQuery : tfsQueries) {
+            for (Query tfsQuery : tfsQueries) {
 
-                value = new FieldValueInfo(tfsQuery.getId(), tfsQuery.getName());
-                if (tfsQuery.getId() == null || StringUtils.isEmpty(tfsQuery.getId())) {
-                    value.setId(tfsQuery.getName());
+                value = new FieldValueInfo(tfsQuery.getQueryId(), tfsQuery.getTitle());
+                if (tfsQuery.getQueryId() == null || StringUtils.isEmpty(tfsQuery.getQueryId())) {
+                    value.setId(tfsQuery.getTitle());
                 }
 
-                value.setDescription(tfsQuery.getName());
+                value.setDescription(tfsQuery.getTitle());
                 values.add(value);
             }
 
@@ -437,7 +436,7 @@ public class TFSRequestProvider extends BaseRequestProvider {
     }
 
     private void setTFSClientConnectionDetails() {
-        getTFSClient().createConnection(getSession(), getTfsUrl(), getTfsApiVersion(), getTfsCollection(), getServiceUser(), getServicePassword());
+        getTFSClient().createConnection(getSession(), getTfsUrl(), getTfsApiVersion(), null, null, getTfsCollection(), getServiceUser(), getServicePassword());
     }
 
     private int getResultLimit() {

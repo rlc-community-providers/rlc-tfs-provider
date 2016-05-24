@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * TFS Project POJO
+ * TFS Project Object
  * @author klee@serena.com
  */
 @XmlRootElement
@@ -32,21 +32,34 @@ public class Project extends TFSObject {
 
     private final static Logger logger = LoggerFactory.getLogger(Project.class);
 
+    private String projectId;
+
+    public void setProjectId(String projectId) {
+        this.projectId = projectId;
+    }
+
+    public String getProjectId() {
+        return this.projectId;
+    }
+
+    public Project() {
+
+    }
+
+    public Project(String id, String name) {
+        this.setProjectId(id);
+        super.setTitle(name);
+    }
+
     public static List<Project> parse(String options) {
         List<Project> list = new ArrayList<>();
         JSONParser parser = new JSONParser();
         try {
             Object parsedObject = parser.parse(options);
-            JSONArray array = (JSONArray) ((JSONObject) parsedObject).get("value");
-            for (Object object : array) {
-                Project obj = new Project();
-                JSONObject projObj = (JSONObject) object;
-                obj.setId((String) projObj.get("id"));
-                obj.setName((String) projObj.get("name"));
-                obj.setDescription((String) projObj.get("description"));
-                obj.setUrl((String) projObj.get("url"));
-                obj.setState((String) projObj.get("state"));
-                list.add(obj);
+            JSONArray jsonArray = (JSONArray) getJSONValue((JSONObject) parsedObject, "value");
+            for (Object object : jsonArray) {
+                Project projObj = parseSingle((JSONObject)object);
+                list.add(projObj);
             }
         } catch (ParseException e) {
             logger.error("Error while parsing input JSON - " + options, e);
@@ -59,8 +72,7 @@ public class Project extends TFSObject {
         JSONParser parser = new JSONParser();
         try {
             Object parsedObject = parser.parse(options);
-            JSONObject jsonObject = (JSONObject) parsedObject;
-            Project project = parseSingle(jsonObject);
+            Project project = parseSingle((JSONObject)parsedObject);
             return project;
         } catch (ParseException e) {
             logger.error("Error while parsing input JSON - " + options, e);
@@ -69,15 +81,23 @@ public class Project extends TFSObject {
     }
 
     public static Project parseSingle(JSONObject jsonObject) {
-        Project obj = new Project();
+        Project projObj = null;
         if (jsonObject != null) {
-            obj.setId((String) jsonObject.get("id"));
-            obj.setName((String) jsonObject.get("name"));
-            obj.setDescription((String) jsonObject.get("description"));
-            obj.setUrl((String) jsonObject.get("url"));
-            obj.setState((String) jsonObject.get("state"));
+            projObj = new Project(
+                (String) getJSONValue(jsonObject, "id"),
+                (String) getJSONValue(jsonObject, "name")
+            );
+            projObj.setDescription((String) getJSONValue(jsonObject, "description"));
+            projObj.setUrl((String) getJSONValue(jsonObject, "url"));
+            projObj.setState((String) getJSONValue(jsonObject, "state"));
         }
-        return obj;
+        return projObj;
     }
+
+    @Override
+    public String toString() {
+        return "Project{" + "id=" + getProjectId() + ", name=" + super.getTitle() + '}';
+    }
+
 
 }

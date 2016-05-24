@@ -10,9 +10,7 @@
 package com.serena.rlc.provider.tfs.client;
 
 import com.serena.rlc.provider.domain.SessionData;
-import com.serena.rlc.provider.tfs.domain.Project;
-import com.serena.rlc.provider.tfs.domain.Query;
-import com.serena.rlc.provider.tfs.domain.WorkItem;
+import com.serena.rlc.provider.tfs.domain.*;
 import com.serena.rlc.provider.tfs.exception.TFSClientException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpHeaders;
@@ -21,8 +19,12 @@ import org.apache.http.HttpStatus;
 import org.apache.http.StatusLine;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPatch;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -30,7 +32,7 @@ import org.springframework.stereotype.Component;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.URI;
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 /**
@@ -42,27 +44,23 @@ public class TFSClient {
     private static final Logger logger = LoggerFactory.getLogger(TFSClient.class);
 
     public static String DEFAULT_HTTP_CONTENT_TYPE = "application/json";
+    public enum VisualStudioApi { TFS_API, RM_API }
 
     private String tfsUrl;
+    private String vsrmUrl;
     private String tfsUsername;
     private String tfsPassword;
     private String tfsCollection;
     private String tfsProject;
-    private String apiVersion;
+    private String tfsApiVersion;
+    private String vsrmApiVersion;
     private SessionData session;
 
     public TFSClient() {
     }
 
-    public TFSClient(SessionData session, String apiVersion, String collection, String url, String username, String password) {
-        this.session = session;
-        this.tfsUrl = url;
-        this.apiVersion = apiVersion;
-        this.tfsCollection = collection;
-        this.tfsProject = "";
-        this.tfsUsername = username;
-        this.tfsPassword = password;
-        this.createConnection(this.session, this.apiVersion, this.tfsCollection, this.tfsUrl, this.tfsUsername, this.tfsPassword);
+    public TFSClient(SessionData session, String tfsUrl, String tfsApiVersion, String vsrmUrl, String vsrmApiVersion, String collection, String username, String password) {
+        this.createConnection(session, tfsUrl, tfsApiVersion, vsrmUrl, vsrmApiVersion, collection, username, password);
     }
 
     public SessionData getSession() {
@@ -81,6 +79,14 @@ public class TFSClient {
         this.tfsUrl = url;
     }
 
+    public String getVSRMUrl() {
+        return vsrmUrl;
+    }
+
+    public void setVSRMUrl(String url) {
+        this.vsrmUrl = url;
+    }
+
     public String getTFSCollection() {
         return tfsCollection;
     }
@@ -97,12 +103,20 @@ public class TFSClient {
         this.tfsCollection = collection;
     }
 
-    public String getApiVersion() {
-        return apiVersion;
+    public String getTfsApiVersion() {
+        return tfsApiVersion;
     }
 
-    public void setApiVersion(String apiVersion) {
-        this.apiVersion = apiVersion;
+    public void setTfsApiVersion(String tfsApiVersion) {
+        this.tfsApiVersion = tfsApiVersion;
+    }
+
+    public String getVsrmApiVersion() {
+        return vsrmApiVersion;
+    }
+
+    public void setVsrmApiVersion(String apiVersion) {
+        this.vsrmApiVersion = apiVersion;
     }
 
     public String getTFSUsername() {
@@ -122,45 +136,48 @@ public class TFSClient {
     }
 
     /**
-     * Create a new connection to TFS.
+     * Create a new connection to TFS/VSRM.
      *
-     * @param url  the url to Ansible, e.g. https://servername
+     * @param tfsUrl  the url to TFS, e.g. https://servername
+     * @param tfsApiVersion  the version of the TFS REST API to use
+     * @param vsrmUrl  the url to VSRM, e.g. https://servername.vsrm
+     * @param vsrmApiVersion  the version of the VSRM REST API to use
      * @param collection  the TFS collection
-     * @param apiVersion  the version of the REST API to use
      * @param username  the username of the TFS user
      * @param password  the password/private token of the TFS user
-     * @throws TFSClientException
      */
-    public void createConnection(SessionData session, String url, String apiVersion, String collection, String username, String password) {
+    public void createConnection(SessionData session, String tfsUrl, String tfsApiVersion, String vsrmUrl, String vsrmApiVersion, String collection, String username, String password) {
         this.session = session;
-        this.tfsUrl = url;
+        this.tfsUrl = tfsUrl;
+        this.tfsApiVersion = tfsApiVersion;
+        this.vsrmUrl = vsrmUrl;
+        this.vsrmApiVersion = vsrmApiVersion;
         this.tfsCollection = collection;
-        this.apiVersion = apiVersion;
+        this.tfsProject = "";
         this.tfsUsername = username;
         this.tfsPassword = password;
     }
 
     /**
-     * Get a list of workItems
+     * Get a list of Work Items from a Query.
      *
      * @param queryId  the id of the query to run
-     * @param resultLimit  the number of workItems to return
-     * @return  a list of workItems
+     * @param titleFilter  the title/name to filter work items on
+     * @param resultLimit  the maximum number of Work Items to return
+     * @return  a list of Work Items
      * @throws TFSClientException
      */
     public List<WorkItem> getWorkItems(String queryId, String titleFilter, Integer resultLimit) throws TFSClientException {
-        logger.debug("Using TFS URL: " + this.tfsUrl);
-        logger.debug("Using TFS Credential: " + this.tfsUsername);
-        logger.debug("Using TFS Query: " + queryId);
+        logger.debug("Retrieving TFS Item Ids using Query \"{}\"", queryId);
         logger.debug("Using Title Filter: " + titleFilter);
         logger.debug("Limiting results to: " + resultLimit.toString());
 
-        logger.debug("Retrieving TFS Item Ids from Query \"{}\"", queryId);
-        String queryResponse = processGet(getTFSUrl(), getTFSCollection() + "/_apis/wit/wiql/" + queryId, "");
+        String queryResponse = processGet(VisualStudioApi.TFS_API, getTFSCollection() + "/_apis/wit/wiql/" + queryId, "");
         logger.debug(queryResponse);
 
         List<WorkItem> workItems = null;
         List<WorkItem> workItemsTmp = WorkItem.parseQuery(queryResponse);
+
         String idList = "";
         int count = 0;
         if (!workItemsTmp.isEmpty()) {
@@ -172,8 +189,8 @@ public class TFSClient {
             if (idList.endsWith(",")) {
                 idList = idList.substring(0, idList.length() - 1);
             }
-            logger.debug("Retrieving TFS Item Details for Work Item \"{}\"", idList);
-            String wiResponse = processGet(getTFSUrl(), getTFSCollection() + "/_apis/wit/workitems", idList);
+            logger.debug("Retrieving TFS Item Details for Work Items \"{}\"", idList);
+            String wiResponse = processGet(VisualStudioApi.TFS_API, getTFSCollection() + "/_apis/wit/workitems", idList);
             workItems = WorkItem.parseDetails(wiResponse);
         }
 
@@ -182,20 +199,17 @@ public class TFSClient {
     }
 
     /**
-     * Get a specfic workItem
+     * Get the details of a specific Work Item.
      *
-     * @param projectId  the id of the project, e.g. Demo
-     * @param workItemId  the id of the workItem, e.g. 1
-     * @return the workItem if found
+     * @param workItemId  the id of the Work Item, e.g. 1
+     * @return the Work Item if found
      * @throws TFSClientException
      */
     public WorkItem getWorkItem(String workItemId) throws TFSClientException {
-        logger.debug("Using TFS URL: " + this.tfsUrl);
-        logger.debug("Using TFS Credential: " + this.tfsUsername);
+        logger.debug("Retrieving TFS Work Item \"{}\"", workItemId);
         logger.debug("Using TFS Work Item Id: " + workItemId);
 
-        logger.debug("Retrieving TFS Work Item");
-        String wiResponse = processGet(getTFSUrl(), getTFSCollection() + "/_apis/wit/workitems/" + workItemId, "");
+        String wiResponse = processGet(VisualStudioApi.TFS_API, getTFSCollection() + "/_apis/wit/workitems/" + workItemId, "");
         logger.debug(wiResponse);
 
         WorkItem workItem = WorkItem.parseSingle(wiResponse);
@@ -203,17 +217,15 @@ public class TFSClient {
     }
 
     /**
-     * Get a list of projects in the domain
+     * Get a list of Projects in the Collection.
+     *
      * @return a list of projects
      * @throws TFSClientException
      */
     public List<Project> getProjects() throws TFSClientException {
-        logger.debug("Using TFS URL: " + this.tfsUrl);
-        logger.debug("Using TFS Collection: " + this.tfsCollection);
-        logger.debug("Using TFS Credential: " + this.tfsUsername);
-
         logger.debug("Retrieving TFS Projects");
-        String projResponse = processGet(getTFSUrl(), getTFSCollection() + "/_apis/projects", "statefilter=All");
+
+        String projResponse = processGet(VisualStudioApi.TFS_API, getTFSCollection() + "/_apis/projects", "statefilter=All");
         logger.debug(projResponse);
 
         List<Project> projects = Project.parse(projResponse);
@@ -221,38 +233,146 @@ public class TFSClient {
     }
 
     /**
-     * Get a list of work item queries in the specified project
+     * Get a list of Work Item Queries in the specified Project.
+     *
+     * @param projectId  the id of the workItem, e.g. 1
+     * @param folderPath  the path to the queries, e.g. Shared Queries
+     *
      * @return a list of queries
      * @throws TFSClientException
      */
     public List<Query> getQueries(String projectId, String folderPath) throws TFSClientException {
-        logger.debug("Using TFS URL: " + this.tfsUrl);
-        logger.debug("Using TFS Collection: " + this.tfsCollection);
-        logger.debug("Using TFS Credential: " + this.tfsUsername);
-        logger.debug("Using TFS Project Id: " + projectId);
-        logger.debug("Using TFS Folder Path: " + folderPath);
+        logger.debug("Retrieving TFS Queries for Project \"{}\" in folder path \"{}\"", projectId, folderPath);
         this.setTFSProject(projectId);
 
-        logger.debug("Retrieving TFS Queries for Project \"{}\" in folder path \"{}\"", projectId, folderPath);
-        String queryResponse = processGet(getTFSUrl(), getTFSCollection() + "/" + projectId + "/_apis/wit/queries/" + folderPath, "$depth=2");
+        String queryResponse = processGet(VisualStudioApi.TFS_API, getTFSCollection() + "/" + projectId + "/_apis/wit/queries/" + folderPath, "$depth=2");
         logger.debug(queryResponse);
 
         List<Query> queries = Query.parse(queryResponse);
         return queries;
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /**
+     * Get a list of Release Definitions for the specified Project.
+     *
+     * @param projectId  the identifier of the project
+     * @return a list of release definitions
+     */
+    public List<ReleaseDefinition> getReleaseDefinitions(String projectId) throws TFSClientException {
+        logger.debug("Retrieving TFS Release Definitions for Project \"{}\"", projectId);
+        this.setTFSProject(projectId);
+
+        String releaseResponse = processGet(VisualStudioApi.RM_API, getTFSCollection() + "/" + projectId + "/_apis/release/definitions", "$expand=environments");
+        logger.debug(releaseResponse);
+
+        List<ReleaseDefinition> releaseDefinitions = ReleaseDefinition.parse(releaseResponse);
+        return releaseDefinitions;
+    }
 
     /**
-     * Execute a get request to TFS
+     * Get a list of Releases for a Release Definition
      *
-     * @param tfsUrl  the URL to TFS
-     * @param getPath  the path for the specific request
+     * @param projectId  the identifier of the project
+     * @param releaseDefinitionId  the identifier of the release definition
+     * @return a list of releases
+     */
+    public List<Release> getReleases(String projectId, String releaseDefinitionId) throws TFSClientException {
+        logger.debug("Retrieving TFS Releases for Release Definition \"{}\" in Project \"{}\"", releaseDefinitionId, projectId);
+        this.setTFSProject(projectId);
+
+        String releaseResponse = processGet(VisualStudioApi.RM_API, getTFSCollection() + "/" + projectId + "/_apis/release/releases", "definitionId="+releaseDefinitionId+"&$expand=environments");
+        logger.debug(releaseResponse);
+
+        List<Release> releases = Release.parse(releaseResponse);
+        return releases;
+    }
+
+    /**
+     * Get a specific Release
+     *
+     * @param projectId  the identifier of the project
+     * @param releaseId  the identifier of the release
+     * @return the release
+     */
+    public Release getRelease(String projectId, String releaseId) throws TFSClientException {
+        logger.debug("Retrieving TFS Release \"{}\" in Project \"{}\"", releaseId, projectId);
+        this.setTFSProject(projectId);
+
+        String releaseResponse = processGet(VisualStudioApi.RM_API, getTFSCollection() + "/" + projectId + "/_apis/release/releases/" + releaseId, "");
+        logger.debug(releaseResponse);
+
+        Release release = Release.parseSingle(releaseResponse);
+        return release;
+    }
+
+    /**
+     * Get a specific Release Environment status
+     *
+     * @param projectId  the identifier of the project
+     * @param releaseId  the identifier of the release
+     * @param environmentId  the identifier of the environment
+     * @return the release environment status, e.g. queued
+     */
+    public String getReleaseEnvironmentStatus(String projectId, String releaseId, String environmentId) throws TFSClientException {
+        logger.debug("Retrieving TFS Release \"{}\" status for Environment \"{}\" in Project \"{}\"", releaseId, environmentId, projectId);
+        this.setTFSProject(projectId);
+
+        String releaseResponse = processGet(VisualStudioApi.RM_API, getTFSCollection() + "/" + projectId + "/_apis/release/releases/" + releaseId, "");
+        logger.debug(releaseResponse);
+
+        String status = "unknown";
+        Release release = Release.parseSingle(releaseResponse);
+        for (Environment e : release.getEnvironments()) {
+            if (e.getId() == Long.parseLong(environmentId)) {
+                status = e.getState();
+                logger.debug("Environment \"{}\" Environment \"{}\" in Release \"{}\" has status \"{}\"", environmentId, releaseId, status);
+                break;
+            }
+        }
+        return status;
+    }
+
+    /**
+     * Deploy a release to one of its environments.
+     *
+     * @param projectId  the identifier of the project
+     * @param releaseId  the identifier of the release
+     * @param environmentId  the identifier of the environment
+     * @return
+     * @throws TFSClientException
+     */
+    public Release deployRelease(String projectId, String releaseId, String environmentId) throws TFSClientException {
+        logger.debug("Deploying TFS Release \"{}\" to environment \"{}\" in Project \"{}\"", releaseId, environmentId, projectId);
+        this.setTFSProject(projectId);
+        this.setVsrmApiVersion("3.0-preview.2"); // hack for deployment
+
+        JSONObject jsonBody = new JSONObject();
+        jsonBody.put("status", "InProgress"); // 2=inprogress
+
+        String releaseResponse = processPatch(VisualStudioApi.RM_API, getTFSCollection() + "/" + projectId + "/_apis/release/releases/" +
+                releaseId + "/environments/" + environmentId,
+                "", jsonBody.toJSONString());
+        logger.debug(releaseResponse);
+
+        Release release = Release.parseSingle(releaseResponse);
+        return release;
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    /**
+     * Execute a get request to TFS.
+     *
+     * @param whichApi  the API to use
+     * @param path  the path for the specific request
+     * @param parameters  parameters to send with the query
      * @return String containing the response body
      * @throws TFSClientException
      */
-    protected String processGet(String tfsUrl, String getPath, String parameters) throws TFSClientException {
-        String uri = createUrl(tfsUrl, getPath, parameters);
+    protected String processGet(VisualStudioApi whichApi, String path, String parameters) throws TFSClientException {
+        String uri = createUrl(whichApi, path, parameters);
 
         logger.debug("Start executing TFS GET request to url=\"{}\"", uri);
 
@@ -266,7 +386,63 @@ public class TFSClient {
 
         try {
             HttpResponse response = httpClient.execute(getRequest);
-            if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+            if (response.getStatusLine().getStatusCode() != org.apache.http.HttpStatus.SC_OK) {
+                throw createHttpError(response);
+            }
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((response.getEntity().getContent())));
+            StringBuilder sb = new StringBuilder(1024);
+            String output;
+            while ((output = br.readLine()) != null) {
+                sb.append(output);
+            }
+            result = sb.toString();
+        } catch (IOException ex) {
+            logger.error(ex.getMessage(), ex);
+            throw new TFSClientException("Server not available", ex);
+        } finally {
+            httpClient.getConnectionManager().shutdown();
+        }
+
+        logger.debug("End executing TFS GET request to url=\"{}\" and receive this result={}", uri, result);
+
+        return result;
+    }
+
+    /**
+     * Execute a post request to TFS.
+     *
+     * @param whichApi  the API to use
+     * @param path  the path for the specific request
+     * @param parameters  parameters to send with the query
+     * @param body  the body to send with the request
+     * @return String containing the response body
+     * @throws TFSClientException
+     */
+    public String processPost(VisualStudioApi whichApi, String path, String parameters, String body) throws TFSClientException {
+        String uri = createUrl(whichApi, path, parameters);
+
+        logger.debug("Start executing TFS POST request to url=\"{}\" with data: {}", uri, body);
+
+        DefaultHttpClient httpClient = new DefaultHttpClient();
+        HttpPost postRequest = new HttpPost(uri);
+        UsernamePasswordCredentials creds = new UsernamePasswordCredentials(getTFSUsername(), getTFSPassword());
+        postRequest.addHeader(BasicScheme.authenticate(creds, "US-ASCII", false) );
+        postRequest.addHeader(HttpHeaders.CONTENT_TYPE, DEFAULT_HTTP_CONTENT_TYPE);
+        postRequest.addHeader(HttpHeaders.ACCEPT, DEFAULT_HTTP_CONTENT_TYPE);
+
+        try {
+            postRequest.setEntity(new StringEntity(body,"UTF-8"));
+        } catch (UnsupportedEncodingException ex) {
+            logger.error(ex.getMessage(), ex);
+            throw new TFSClientException("Error creating body for POST request", ex);
+        }
+        String result = "";
+
+        try {
+            HttpResponse response = httpClient.execute(postRequest);
+            if (response.getStatusLine().getStatusCode() != org.apache.commons.httpclient.HttpStatus.SC_OK && response.getStatusLine().getStatusCode() != org.apache.commons.httpclient.HttpStatus.SC_CREATED &&
+                    response.getStatusLine().getStatusCode() != org.apache.commons.httpclient.HttpStatus.SC_ACCEPTED) {
                 throw createHttpError(response);
             }
 
@@ -280,62 +456,102 @@ public class TFSClient {
         } catch (IOException e) {
             logger.error(e.getMessage(), e);
             throw new TFSClientException("Server not available", e);
-        } finally {
-            httpClient.getConnectionManager().shutdown();
         }
 
-        logger.debug("End executing TFS GET request to url=\"{}\" and receive this result={}", uri, result);
+        logger.debug("End executing TFS POST request to url=\"{}\" and received this result={}", uri, result);
 
         return result;
     }
 
     /**
-     * Create a TFS URL from base and path
-     * @param tfsUrl  the base TFS URL, e.g. http://servername
+     * Execute a patch request to TFS.
+     *
+     * @param whichApi  the API to use
+     * @param path  the path for the specific request
+     * @param parameters  parameters to send with the query
+     * @param body  the body to send with the request
+     * @return String containing the response body
+     * @throws TFSClientException
+     */
+    public String processPatch(VisualStudioApi whichApi, String path, String parameters, String body) throws TFSClientException {
+        String uri = createUrl(whichApi, path, parameters);
+
+        logger.debug("Start executing TFS PATCH request to url=\"{}\" with data: {}", uri, body);
+
+        DefaultHttpClient httpClient = new DefaultHttpClient();
+        HttpPatch patchRequest = new HttpPatch(uri);
+        UsernamePasswordCredentials creds = new UsernamePasswordCredentials(getTFSUsername(), getTFSPassword());
+        patchRequest.addHeader(BasicScheme.authenticate(creds, "US-ASCII", false) );
+        patchRequest.addHeader(HttpHeaders.CONTENT_TYPE, DEFAULT_HTTP_CONTENT_TYPE);
+        patchRequest.addHeader(HttpHeaders.ACCEPT, DEFAULT_HTTP_CONTENT_TYPE);
+
+        try {
+            patchRequest.setEntity(new StringEntity(body,"UTF-8"));
+        } catch (UnsupportedEncodingException ex) {
+            logger.error(ex.getMessage(), ex);
+            throw new TFSClientException("Error creating body for PATCH request", ex);
+        }
+        String result = "";
+
+        try {
+            HttpResponse response = httpClient.execute(patchRequest);
+            if (response.getStatusLine().getStatusCode() != org.apache.commons.httpclient.HttpStatus.SC_OK && response.getStatusLine().getStatusCode() != org.apache.commons.httpclient.HttpStatus.SC_CREATED &&
+                    response.getStatusLine().getStatusCode() != org.apache.commons.httpclient.HttpStatus.SC_ACCEPTED) {
+                throw createHttpError(response);
+            }
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((response.getEntity().getContent())));
+            StringBuilder sb = new StringBuilder(1024);
+            String output;
+            while ((output = br.readLine()) != null) {
+                sb.append(output);
+            }
+            result = sb.toString();
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new TFSClientException("Server not available", e);
+        }
+
+        logger.debug("End executing TFS PATCH request to url=\"{}\" and received this result={}", uri, result);
+
+        return result;
+    }
+
+    /**
+     * Create a TFS URL from base and path.
+     *
+     * @param whichApi  is this a TFS of RM URL
      * @param path  the path to the request
+     * @param parameters  the parameters to send with the request
      * @return a String containing a complete TFS path
      */
-    public String createUrl(String tfsUrl, String path, String parameters) {
-        String params = "";
-        String base = "";
-        String result = "";
-        path = path.replaceAll(" ", "%20");
+    public String createUrl(VisualStudioApi whichApi, String path, String parameters) {
+        String base = getTFSUrl();
+        String apiVersion = getTfsApiVersion();
+        String apiParams;
+
+        // which API are we using?
+        if (whichApi == VisualStudioApi.RM_API) {
+            base = getVSRMUrl();
+            apiVersion = getVsrmApiVersion();
+        }
+
+        // trim and encode path
+        path = path.trim().replaceAll(" ", "%20");
         // if path doesn't start with "/" add it
         if (!path.startsWith("/")) {
             path = "/" + path;
         }
-        // if tfsUrl ends with "/" remove it
-        if (tfsUrl.endsWith("/")) {
-            tfsUrl.substring(0, tfsUrl.length()-1);
-        }
-        if (StringUtils.isNotEmpty(getApiVersion())) {
-            if (StringUtils.isEmpty(parameters)) {
-                params = "?api-version=" + getApiVersion();
-            } else {
-                params = "?" + parameters + "&api-version=" + getApiVersion();
-            }
+
+        // set parameters
+        if (StringUtils.isEmpty(parameters)) {
+            apiParams = "?api-version=" + apiVersion;
         } else {
-            params = parameters;
+            apiParams = "?" + parameters + "&api-version=" + apiVersion;
         }
-        result = tfsUrl + path + params;
 
-        return result;
-    }
-
-    /**
-     * @param path
-     * @return
-     */
-    private String encodePath(String path) {
-        String result;
-        URI uri;
-        try {
-            uri = new URI(null, null, path, null);
-            result = uri.toASCIIString();
-        } catch (Exception e) {
-            result = path;
-        }
-        return result;
+        System.out.println(base + path + apiParams);
+        return base + path + apiParams;
     }
 
     /**
@@ -377,33 +593,38 @@ public class TFSClient {
 
     // Testing API
     static public void main(String[] args) {
-        TFSClient tfs = new TFSClient(null, "https://digitalparkingsolutions.visualstudio.com", "1.0", "DefaultCollection", "kevinalee", "67popgoaxbdm2ducvhaf54fgmtzbouronq22rfdb6fddt542c3va");
+        TFSClient tfs = new TFSClient(null, "https://digitalparkingsolutions.visualstudio.com",
+                "1.0", "https://digitalparkingsolutions.vsrm.visualstudio.com", "3.0-preview.1",
+                "DefaultCollection", "kevinalee", "67popgoaxbdm2ducvhaf54fgmtzbouronq22rfdb6fddt542c3va");
 
-        String firstProj = "";
-        String firstQuery = "";
-        String firstWorkItem = "";
+        Project firstProj = null;
+        Query firstQuery = null;
+        WorkItem firstWorkItem = null;
+        ReleaseDefinition firstReleaseDefinition = null;
+        Release firstRelease = null;
+        Environment firstEnvironment = null;
 
         System.out.println("Retrieving TFS Projects...");
         List<Project> projects = null;
         try {
             projects = tfs.getProjects();
             for (Project p : projects) {
-                if (firstProj.length() == 0) firstProj = p.getName();
-                System.out.println("Found Project " + p.getName());
+                if (firstProj == null) firstProj = p;
+                System.out.println("Found Project: " + p.getTitle());
                 System.out.println("Description: " + p.getDescription());
                 System.out.println("URL: " + p.getUrl());
             }
         } catch (TFSClientException e) {
             System.out.print(e.toString());
         }
-
+/*
         System.out.println("Retrieving TFS Queries...");
         List<Query> queries = null;
         try {
-            queries = tfs.getQueries(firstProj, "Shared Queries");
+            queries = tfs.getQueries(firstProj.getProjectId(), "Shared Queries");
             for (Query q : queries) {
-                if (firstQuery.length() == 0) firstQuery = q.getId();
-                System.out.println("Found Query: " + q.getName());
+                if (firstQuery == null) firstQuery = q;
+                System.out.println("Found Query: " + q.getTitle());
                 System.out.println("Path: " + q.getPath());
                 System.out.println("URL: " + q.getUrl());
             }
@@ -412,18 +633,18 @@ public class TFSClient {
         }
 
         for (Query query : queries) {
-            System.out.println("Retrieving Work Items for query: " + query.getName());
+            System.out.println("Retrieving Work Items for Query: " + query.getTitle());
             if (query.getIsFolder()) continue;
             List<WorkItem> workItems = null;
             try {
-                workItems = tfs.getWorkItems(query.getId(), "", 2);
+                workItems = tfs.getWorkItems(query.getQueryId(), "", 2);
                 if (workItems != null) {
-                    for (WorkItem d : workItems) {
-                        if (firstWorkItem.length() == 0) firstWorkItem = d.getId();
-                        System.out.println("Found Work Item: " + d.getId());
-                        System.out.println("Title: " + d.getName());
-                        System.out.println("Description: " + d.getDescription());
-                        System.out.println("Severity: " + d.getSeverity());
+                    for (WorkItem wi : workItems) {
+                        if (firstWorkItem == null) firstWorkItem = wi;
+                        System.out.println("Found Work Item: " + wi.getId());
+                        System.out.println("Title: " + wi.getTitle());
+                        System.out.println("Description: " + wi.getDescription());
+                        System.out.println("Severity: " + wi.getSeverity());
                     }
                 }
             } catch (TFSClientException e){
@@ -431,17 +652,82 @@ public class TFSClient {
             }
         }
 
-        System.out.println("Retrieving Work Item: " + firstWorkItem + "...");
+        System.out.println("Retrieving Work Item: " + firstWorkItem.getId().toString() + "...");
         try {
-            WorkItem wi = tfs.getWorkItem(firstWorkItem);
+            WorkItem wi = tfs.getWorkItem(firstWorkItem.getId().toString());
             System.out.println("Found Work Item: " + wi.getId());
-            System.out.println("Title: " + wi.getName());
+            System.out.println("Title: " + wi.getTitle());
             System.out.println("State: " + wi.getState());
             System.out.println("Severity: " + wi.getSeverity());
             System.out.println("Type: " + wi.getType());
             System.out.println("Project: " + wi.getProject());
         } catch (TFSClientException e) {
             System.out.print(e.toString());
+        }
+*/
+        System.out.println("Retrieving TFS Release Definitions...");
+        List<ReleaseDefinition> releaseDefinitions = null;
+        try {
+            releaseDefinitions = tfs.getReleaseDefinitions(firstProj.getProjectId());
+            for (ReleaseDefinition rd : releaseDefinitions) {
+                if (firstReleaseDefinition == null) firstReleaseDefinition = rd;
+                System.out.println("Found Release Definition: " + rd.getId() + " - " + rd.getTitle());
+                System.out.println("URL: " + rd.getUrl());
+            }
+        } catch (TFSClientException e) {
+            System.out.print(e.toString());
+        }
+
+        System.out.println("Retrieving TFS Releases...");
+        List<Release> releases = null;
+        try {
+            releases = tfs.getReleases(firstProj.getProjectId(), firstReleaseDefinition.getId().toString());
+            for (Release r : releases) {
+                if (firstRelease == null) firstRelease = r;
+                System.out.println("Found Release: " + r.getId().toString() + " - " + r.getTitle());
+                System.out.println("Status: " + r.getState());
+                for (Environment e : r.getEnvironments()) {
+                    if (firstEnvironment == null) { firstEnvironment = e; }
+                    System.out.println("with Environment: " + e.getId() + " - " + e.getTitle());
+                }
+            }
+        } catch (TFSClientException e) {
+            System.out.print(e.toString());
+        }
+
+        System.out.println("Deploying Release " + firstRelease.getTitle() + " to " + firstEnvironment.getTitle());
+        try {
+            Release release = tfs.deployRelease(firstProj.getProjectId(), firstRelease.getId().toString(), firstEnvironment.getId().toString());
+            System.out.println("Release " + release.getTitle() + " has status: " + release.getState());
+        } catch (TFSClientException e) {
+            System.out.print(e.toString());
+        }
+
+        int pollCount = 0;
+        String deployStatus = null;
+        while (pollCount < 100) {
+            try {
+                Thread.sleep(6000);
+                deployStatus = tfs.getReleaseEnvironmentStatus(firstProj.getProjectId(), firstRelease.getId().toString(),
+                        firstEnvironment.getId().toString());
+                System.out.println("Environment Deployment Status = " + deployStatus);
+            } catch (TFSClientException e) {
+                logger.debug ("Error checking release status ({}) - {}", firstRelease.getId(), e.getMessage());
+            } catch (InterruptedException e) {
+            }
+            if (deployStatus != null && (deployStatus.equals("succeeded") ||
+                    deployStatus.equals("rejected") ||
+                    deployStatus.equals("failed"))) {
+                break;
+            }
+
+            pollCount++;
+        }
+
+        if (deployStatus != null && deployStatus.equals("succeeded")) {
+            System.out.println("Release " + firstRelease.getTitle() + " has succeeded");
+        } else {
+            System.out.println("Release " + firstRelease.getTitle() + " has failed/rejected or its status cannot be retrieved.");
         }
     }
 }

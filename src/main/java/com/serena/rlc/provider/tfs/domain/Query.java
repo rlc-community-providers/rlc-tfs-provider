@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * TFS Query POJO
+ * TFS Query Object
  * @author klee@serena.com
  */
 @XmlRootElement
@@ -31,8 +31,17 @@ public class Query extends TFSObject {
 
     private final static Logger logger = LoggerFactory.getLogger(Query.class);
 
+    private String queryId;
     private String path;
     private boolean isFolder;
+
+    public void setQueryId(String queryId) {
+        this.queryId = queryId;
+    }
+    
+    public String getQueryId() {
+        return this.queryId;
+    }
 
     public void setPath(String path) {
         this.path = path;
@@ -55,18 +64,10 @@ public class Query extends TFSObject {
         JSONParser parser = new JSONParser();
         try {
             Object parsedObject = parser.parse(options);
-            JSONArray array = (JSONArray) ((JSONObject) parsedObject).get("children");
-            for (Object object : array) {
-                Query obj = new Query();
-                JSONObject projObj = (JSONObject) object;
-                obj.setId((String) projObj.get("id"));
-                obj.setName((String) projObj.get("name"));
-                obj.setPath((String) projObj.get("path"));
-                obj.setUrl((String) projObj.get("url"));
-                if (projObj.containsKey("isFolder")) {
-                    obj.setIsFolder((boolean)projObj.get("isFolder"));
-                }
-                list.add(obj);
+            JSONArray jsonArray = (JSONArray) getJSONValue((JSONObject)parsedObject, "children");
+            for (Object object : jsonArray) {
+                Query queryObj = parseSingle((JSONObject)object);
+                list.add(queryObj);
             }
         } catch (ParseException e) {
             logger.error("Error while parsing input JSON - " + options, e);
@@ -79,8 +80,7 @@ public class Query extends TFSObject {
         JSONParser parser = new JSONParser();
         try {
             Object parsedObject = parser.parse(options);
-            JSONObject jsonObject = (JSONObject) parsedObject;
-            Query query = parseSingle(jsonObject);
+            Query query = parseSingle((JSONObject) parsedObject);
             return query;
         } catch (ParseException e) {
             logger.error("Error while parsing input JSON - " + options, e);
@@ -89,14 +89,17 @@ public class Query extends TFSObject {
     }
 
     public static Query parseSingle(JSONObject jsonObject) {
-        Query obj = new Query();
+        Query queryObj = new Query();
         if (jsonObject != null) {
-            obj.setId((String) jsonObject.get("id"));
-            obj.setName((String) jsonObject.get("name"));
-            obj.setPath((String) jsonObject.get("path"));
-            obj.setUrl((String) jsonObject.get("url"));
+            queryObj.setQueryId((String) getJSONValue(jsonObject, "id"));
+            queryObj.setTitle((String) getJSONValue(jsonObject, "name"));
+            queryObj.setPath((String) getJSONValue(jsonObject, "path"));
+            queryObj.setUrl((String) getJSONValue(jsonObject, "url"));
+            if (jsonObject.containsKey("isFolder")) {
+                queryObj.setIsFolder((boolean) getJSONValue(jsonObject, "isFolder"));
+            }
         }
-        return obj;
+        return queryObj;
     }
 
 }

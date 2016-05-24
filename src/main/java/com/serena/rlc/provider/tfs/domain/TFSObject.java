@@ -9,19 +9,21 @@
  */
 package com.serena.rlc.provider.tfs.domain;
 
+import org.json.simple.JSONObject;
+
 import java.io.Serializable;
 
 /**
- * TFS Base POJO
+ * Base TFS Object
  * @author klee@serena.com
  */
 public class TFSObject implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-
-    private String id;
-    private String name;
+    private Long id;
+    private Long rev;
+    private String title;
     private String description;
     private Long created;
     private String state;
@@ -31,34 +33,50 @@ public class TFSObject implements Serializable {
 
     }
 
-    public TFSObject(String id, String name, String description) {
+    public TFSObject(Long id, String title, String description) {
         this.id = id;
-        this.name = name;
+        this.title = title;
         this.description = description;
     }
 
-    public String getId() {
+    public Long getId() {
         return id;
     }
 
-    public String getName() {
-        return name;
+    public Long getRev() {
+        return rev;
+    }
+
+    public String getTitle() {
+        return title;
     }
 
     public String getDescription() {
         return description;
     }
 
+    public String getState() {
+        return state;
+    }
+
     public Long getCreated() {
         return created;
     }
 
-    public void setId(String id) {
+    public String getUrl() {
+        return url;
+    }
+
+    public void setId(Long id) {
         this.id = id;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setRev(Long rev) {
+        this.rev = rev;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 
     public void setDescription(String description) {
@@ -69,20 +87,20 @@ public class TFSObject implements Serializable {
         this.created = created;
     }
 
-    public String getState() {
-        return state;
-    }
-
     public void setState(String state) {
         this.state = state;
     }
 
-    public String getUrl() {
-        return url;
-    }
-
     public void setUrl(String url) {
         this.url = url;
+    }
+
+    public static Object getJSONValue(JSONObject obj, String key) {
+        Object retObj = null;
+        if (obj.containsKey(key)) {
+            return obj.get(key);
+        }
+        return retObj;
     }
 
     @Override
