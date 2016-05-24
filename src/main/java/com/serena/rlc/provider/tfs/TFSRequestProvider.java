@@ -9,20 +9,17 @@
  */
 package com.serena.rlc.provider.tfs;
 
-import com.serena.rlc.provider.BaseRequestProvider;
 import com.serena.rlc.provider.annotations.*;
 import com.serena.rlc.provider.domain.*;
 import com.serena.rlc.provider.exceptions.ProviderException;
-import com.serena.rlc.provider.tfs.client.TFSClient;
-import com.serena.rlc.provider.tfs.domain.Query;
+import com.serena.rlc.provider.spi.IRequestProvider;
 import com.serena.rlc.provider.tfs.domain.WorkItem;
-import com.serena.rlc.provider.tfs.domain.TFSObject;
-import com.serena.rlc.provider.tfs.domain.Project;
+import com.serena.rlc.provider.tfs.exception.TFSClientException;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import com.serena.rlc.provider.tfs.exception.TFSClientException;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,14 +27,12 @@ import java.util.List;
  * TFS Request Provider
  * @author klee@serena.com
  */
-public class TFSRequestProvider extends BaseRequestProvider {
+public class TFSRequestProvider extends TFSBaseServiceProvider implements IRequestProvider {
 
     final static Logger logger = LoggerFactory.getLogger(TFSRequestProvider.class);
-    final static String PROJECT = "project";
-    final static String QUERY = "query";
+
     final static String TITLE_FILTER = "titleFilter";
 
-    private TFSClient tfsClient;
     private Integer resultLimit;
 
 
@@ -61,36 +56,6 @@ public class TFSRequestProvider extends BaseRequestProvider {
             dataType = DataType.TEXT)
     private String providerDescription;
 
-    @ConfigProperty(name = "tfs_url", displayName = "TFS URL",
-            description = "TFS Server URL.",
-            defaultValue = "http://<servername>",
-            dataType = DataType.TEXT)
-    private String tfsUrl;
-    
-    @ConfigProperty(name = "tfs_api_version", displayName = "TFS API Version",
-            description = "The TFS API Version.",
-            defaultValue = "1.0",
-            dataType = DataType.TEXT)
-    private String tfsApiVersion;
-
-    @ConfigProperty(name = "tfs_collection", displayName = "TFS Collection",
-            description = "The TFS domain to query.",
-            defaultValue = "DefaultCollection",
-            dataType = DataType.TEXT)
-    private String tfsCollection;    
-
-    @ConfigProperty(name = "tfs_serviceuser", displayName = "User Name",
-            description = "TFS service username.",
-            defaultValue = "",
-            dataType = DataType.TEXT)
-    private String serviceUser;
-
-    @ConfigProperty(name = "tfs_servicepassword", displayName = "Password",
-            description = "TFS service password.",
-            defaultValue = "",
-            dataType = DataType.PASSWORD)
-    private String servicePassword;
-
     @ConfigProperty(name = "request_result_limit", displayName = "Result Limit",
             description = "Result limit for find requests action",
             defaultValue = "200",
@@ -103,7 +68,6 @@ public class TFSRequestProvider extends BaseRequestProvider {
     }
 
     @Autowired(required = false)
-    @Override
     public void setProviderName(String providerName) {
         if (StringUtils.isNotEmpty(providerName)) {
             providerName = providerName.trim();
@@ -118,79 +82,12 @@ public class TFSRequestProvider extends BaseRequestProvider {
     }
 
     @Autowired(required = false)
-    @Override
     public void setProviderDescription(String providerDescription) {
         if (StringUtils.isNotEmpty(providerDescription)) {
             providerDescription = providerDescription.trim();
         }
 
         this.providerDescription = providerDescription;
-    }
-
-    public String getTfsUrl() {
-        return tfsUrl;
-    }
-
-    @Autowired(required = false)
-    public void setTfsUrl(String tfsUrl) {
-        if (StringUtils.isNotEmpty(tfsUrl)) {
-            this.tfsUrl = tfsUrl.replaceAll("^\\s+", "");
-        } else {
-            this.tfsUrl = "http://localhost";
-        }
-    }
-
-    public String getTfsApiVersion() {
-        return tfsApiVersion;
-    }
-
-    @Autowired(required = false)
-    public void setTfsApiVersion(String tfsApiVersion) {
-        if (!StringUtils.isEmpty(tfsApiVersion)) {
-            tfsApiVersion = tfsApiVersion.trim();
-        }
-        else {
-            this.tfsApiVersion = "1.0";
-        }
-
-        this.tfsApiVersion = tfsApiVersion;
-    }
-
-    public String getTfsCollection() {
-        return tfsCollection;
-    }
-
-    @Autowired(required = false)
-    public void setTfsCollection(String tfsCollection) {
-        if (!StringUtils.isEmpty(tfsCollection)) {
-            tfsCollection = tfsCollection.trim();
-        } else {
-            tfsCollection = "DefaultCollection";
-        }
-
-        this.tfsCollection = tfsCollection;
-    }
-
-    public String getServiceUser() {
-        return serviceUser;
-    }
-
-    @Autowired(required = false)
-    public void setServiceUser(String serviceUser) {
-        if (!StringUtils.isEmpty(serviceUser)) {
-            this.serviceUser = serviceUser.replaceAll("^\\s+", "");
-        }
-    }
-
-    public String getServicePassword() {
-        return servicePassword;
-    }
-
-    @Autowired(required = false)
-    public void setServicePassword(String servicePassword) {
-        if (!StringUtils.isEmpty(servicePassword)) {
-            this.servicePassword = servicePassword.replaceAll("^\\s+", "");
-        }
     }
 
     public String getRequestResultLimit() {
@@ -204,15 +101,16 @@ public class TFSRequestProvider extends BaseRequestProvider {
 
 
     //================================================================================
-    // IRequestProvider Overrides
+    // Services Methods
+    // -------------------------------------------------------------------------------
     //================================================================================
 
-    @Override
     @Service(name = FIND_REQUESTS, displayName = "Find Work Items", description = "Find TFS Work Items.")
-    @Params(params = {
+        @Params(params = {
             @Param(fieldName = PROJECT, displayName = "Project", description = "TFS project name", required = true, dataType = DataType.SELECT),
             @Param(fieldName = QUERY, displayName = "Query", description = "TFS Query name", required = true, dataType = DataType.SELECT),
-            @Param(fieldName = TITLE_FILTER, displayName = "Title Filter", description = "Work Item Title filter."),})
+            @Param(fieldName = TITLE_FILTER, displayName = "Title Filter", description = "Work Item Title filter.")
+    })
     public ProviderInfoResult findRequests(List<Field> properties, Long startIndex, Long resultCount) throws ProviderException {
         Field field = Field.getFieldByName(properties, PROJECT);
         if (field == null) {
@@ -244,8 +142,8 @@ public class TFSRequestProvider extends BaseRequestProvider {
             if (requests != null) {
                 ProviderInfo pReqInfo;
                 for (WorkItem request : requests) {
-                    pReqInfo = new ProviderInfo(request.getId().toString(), request.getTitle(), request.getType(), request.getTitle(), request.getUrl());
-                    pReqInfo.setId(request.getId().toString());
+                    pReqInfo = new ProviderInfo(request.getId(), request.getTitle(), request.getType(), request.getTitle(), request.getUrl());
+                    pReqInfo.setId(request.getId());
                     pReqInfo.setName(request.getTitle());
                     pReqInfo.setTitle(request.getTitle());
                     if (StringUtils.isEmpty(request.getDescription())) {
@@ -276,9 +174,8 @@ public class TFSRequestProvider extends BaseRequestProvider {
         return new ProviderInfoResult(0, list.size(), list.toArray(new ProviderInfo[list.size()]));
     }
 
-    @Override
     @Service(name = GET_REQUEST, displayName = "Get Work Item", description = "Get TFS Work Item information.")
-    @Params(params = {
+        @Params(params = {
             @Param(fieldName = REQUEST_ID, displayName = "Work Item Id", description = "TFS Work Item identifier", required = true, deployUnit = false, dataType = DataType.SELECT)
     })
     public ProviderInfo getRequest(Field property) throws ProviderException {
@@ -293,8 +190,8 @@ public class TFSRequestProvider extends BaseRequestProvider {
                 throw new ProviderException("Unable to find request: " + property.getValue());
             }
 
-            ProviderInfo pReqInfo = new ProviderInfo(request.getId().toString(), request.getTitle(), request.getType(), request.getTitle(), request.getUrl());
-            pReqInfo.setId(request.getId().toString());
+            ProviderInfo pReqInfo = new ProviderInfo(request.getId(), request.getTitle(), request.getType(), request.getTitle(), request.getUrl());
+            pReqInfo.setId(request.getId());
             pReqInfo.setName(request.getTitle());
             pReqInfo.setTitle(request.getTitle());
             if (StringUtils.isEmpty(request.getDescription())) {
@@ -326,7 +223,7 @@ public class TFSRequestProvider extends BaseRequestProvider {
             throws ProviderException {
 
         if (fieldName.equalsIgnoreCase(PROJECT)) {
-            return getProjectFieldValues(fieldName);
+            return getProjectFieldValues(fieldName, properties);
         } else if (fieldName.equalsIgnoreCase(QUERY)) {
             return getQueryFieldValues(fieldName, properties);
         }
@@ -335,109 +232,8 @@ public class TFSRequestProvider extends BaseRequestProvider {
     }
 
     //================================================================================
-    // Getter Methods
-    // -------------------------------------------------------------------------------
-    // These methods are used to get the field values. The @Getter annotation is used
-    // by the system to generate a user interface and pass the correct parameters to
-    // to the provider
-    //================================================================================
-
-    @Getter(name = PROJECT, displayName = "Project", description = "Get TFS project field values.")
-    public FieldInfo getProjectFieldValues(String fieldName) throws ProviderException {
-        FieldInfo fieldInfo = new FieldInfo(fieldName);
-        setTFSClientConnectionDetails();
-
-        try {
-            List<Project> tfsProjects = tfsClient.getProjects();
-            if (tfsProjects == null || tfsProjects.size() < 1) {
-                return null;
-            }
-
-            List<FieldValueInfo> values = new ArrayList<>();
-            FieldValueInfo value;
-            for (Project tfsProj : tfsProjects) {
-
-                value = new FieldValueInfo(tfsProj.getProjectId(), tfsProj.getTitle());
-                if (tfsProj.getProjectId() == null || StringUtils.isEmpty(tfsProj.getProjectId())) {
-                    value.setId(tfsProj.getTitle());
-                }
-
-                value.setDescription(tfsProj.getTitle());
-                values.add(value);
-            }
-
-            fieldInfo.setValues(values);
-            return fieldInfo;
-        } catch (TFSClientException ex) {
-            logger.error("Unable to retrieve TFS Projects: {}", ex.getLocalizedMessage());
-            throw new ProviderException(ex.getLocalizedMessage());
-        }
-    }
-
-    @Getter(name = QUERY, displayName = "Query", description = "Get TFS Query field values.")
-        @Params(params = {@Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS project field values", required = true, dataType = DataType.SELECT)
-    })
-    public FieldInfo getQueryFieldValues(String fieldName, List<Field> properties) throws ProviderException {
-        FieldInfo fieldInfo = new FieldInfo(fieldName);
-        setTFSClientConnectionDetails();
-
-        Field field = Field.getFieldByName(properties, PROJECT);
-        if (field == null || StringUtils.isEmpty(field.getValue()))
-            throw new ProviderException("Missing required property: " + PROJECT);
-
-        String projectId = field.getValue();
-
-        try {
-            List<Query> tfsQueries = tfsClient.getQueries(projectId, "Shared Queries");
-            if (tfsQueries == null || tfsQueries.size() < 1) {
-                return null;
-            }
-
-            List<FieldValueInfo> values = new ArrayList<>();
-            FieldValueInfo value;
-            for (Query tfsQuery : tfsQueries) {
-
-                value = new FieldValueInfo(tfsQuery.getQueryId(), tfsQuery.getTitle());
-                if (tfsQuery.getQueryId() == null || StringUtils.isEmpty(tfsQuery.getQueryId())) {
-                    value.setId(tfsQuery.getTitle());
-                }
-
-                value.setDescription(tfsQuery.getTitle());
-                values.add(value);
-            }
-
-            fieldInfo.setValues(values);
-            return fieldInfo;
-        } catch (TFSClientException ex) {
-            logger.error("Unable to retrieve TFS Queries: {}", ex.getLocalizedMessage());
-            throw new ProviderException(ex.getLocalizedMessage());
-        }
-    }
-
-
-    //================================================================================
     // Private Methods
     //================================================================================
-
-	private TFSClient getTFSClient() {
-        if (tfsClient == null) {
-            tfsClient = new TFSClient();
-        }
-        
-        return tfsClient;
-    }
-	
-    private void addField(List<Field> fieldCollection, String fieldName, String fieldDisplayName, String fieldValue) {
-        if (StringUtils.isNotEmpty(fieldValue)) {
-            Field field = new Field(fieldName, fieldDisplayName);
-            field.setValue(fieldValue);
-            fieldCollection.add(field);
-        }
-    }
-
-    private void setTFSClientConnectionDetails() {
-        getTFSClient().createConnection(getSession(), getTfsUrl(), getTfsApiVersion(), null, null, getTfsCollection(), getServiceUser(), getServicePassword());
-    }
 
     private int getResultLimit() {
         if (resultLimit == null) {
@@ -453,6 +249,40 @@ public class TFSRequestProvider extends BaseRequestProvider {
         }
 
         return resultLimit;
+    }
+
+    //
+
+    @Override
+    public ServiceInfo getServiceInfo(String service)
+            throws ProviderException {
+        return AnnotationUtil.getServiceInfo(this.getClass(), service);
+    }
+
+    @Override
+    public ServiceInfoResult getServices()
+            throws ProviderException {
+        List<ServiceInfo> services = AnnotationUtil.getServices(this.getClass());
+        return new ServiceInfoResult(0, services.size(), services.toArray(new ServiceInfo[services.size()]));
+    }
+
+    @Override
+    public FieldValuesGetterFunction findFieldValuesGetterFunction(String fieldName)
+            throws ProviderException {
+        return AnnotationUtil.findFieldValuesGetterFunction(this.getClass(), fieldName);
+    }
+
+    @Override
+    public FieldValuesGetterFunctionResult findFieldValuesGetterFunctions()
+            throws ProviderException {
+        List<FieldValuesGetterFunction> getters = AnnotationUtil.findFieldValuesGetterFunctions(this.getClass());
+        return new FieldValuesGetterFunctionResult(0, getters.size(), getters.toArray(new FieldValuesGetterFunction[getters.size()]));
+    }
+
+    @Override
+    public ConfigurationPropertyResult getConfigurationProperties() throws ProviderException {
+        List<ConfigurationProperty> configProps = AnnotationUtil.getConfigurationProperties(this.getClass(), this);
+        return new ConfigurationPropertyResult(0, configProps.size(), configProps.toArray(new ConfigurationProperty[configProps.size()]));
     }
 
 }

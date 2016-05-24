@@ -34,10 +34,9 @@ public class Environment  extends TFSObject {
 
     }
 
-    public Environment(Long id, String name, String status) {
+    public Environment(String id, String name) {
         super.setId(id);
         super.setTitle(name);
-        super.setState(status);
     }
 
     public static List<Environment> parse(String options) {
@@ -73,10 +72,10 @@ public class Environment  extends TFSObject {
         Environment envObj = null;
         if (jsonObject != null) {
             envObj = new Environment(
-                (Long) getJSONValue(jsonObject, "id"),
-                (String) getJSONValue(jsonObject, "name"),
-                (String) getJSONValue(jsonObject, "status")
+                String.valueOf((Long) getJSONValue(jsonObject, "id")),
+                (String) getJSONValue(jsonObject, "name")
             );
+            envObj.setState((String) jsonObject.get("status"));
         }
         return envObj;
     }

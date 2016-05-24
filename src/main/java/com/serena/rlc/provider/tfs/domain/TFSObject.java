@@ -21,7 +21,7 @@ public class TFSObject implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private Long id;
+    private String id;  // Standardize on String because different types used in TFS/VSRM APIs
     private Long rev;
     private String title;
     private String description;
@@ -33,13 +33,13 @@ public class TFSObject implements Serializable {
 
     }
 
-    public TFSObject(Long id, String title, String description) {
+    public TFSObject(String id, String title, String description) {
         this.id = id;
         this.title = title;
         this.description = description;
     }
 
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
@@ -67,7 +67,7 @@ public class TFSObject implements Serializable {
         return url;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 

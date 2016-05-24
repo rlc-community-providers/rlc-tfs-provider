@@ -323,7 +323,7 @@ public class TFSClient {
         String status = "unknown";
         Release release = Release.parseSingle(releaseResponse);
         for (Environment e : release.getEnvironments()) {
-            if (e.getId() == Long.parseLong(environmentId)) {
+            if (e.getId().equals(environmentId)) {
                 status = e.getState();
                 logger.debug("Environment \"{}\" Environment \"{}\" in Release \"{}\" has status \"{}\"", environmentId, releaseId, status);
                 break;
@@ -338,7 +338,7 @@ public class TFSClient {
      * @param projectId  the identifier of the project
      * @param releaseId  the identifier of the release
      * @param environmentId  the identifier of the environment
-     * @return
+     * @return the Release
      * @throws TFSClientException
      */
     public Release deployRelease(String projectId, String releaseId, String environmentId) throws TFSClientException {
@@ -617,11 +617,11 @@ public class TFSClient {
         } catch (TFSClientException e) {
             System.out.print(e.toString());
         }
-/*
+
         System.out.println("Retrieving TFS Queries...");
         List<Query> queries = null;
         try {
-            queries = tfs.getQueries(firstProj.getProjectId(), "Shared Queries");
+            queries = tfs.getQueries(firstProj.getId(), "Shared Queries");
             for (Query q : queries) {
                 if (firstQuery == null) firstQuery = q;
                 System.out.println("Found Query: " + q.getTitle());
@@ -637,7 +637,7 @@ public class TFSClient {
             if (query.getIsFolder()) continue;
             List<WorkItem> workItems = null;
             try {
-                workItems = tfs.getWorkItems(query.getQueryId(), "", 2);
+                workItems = tfs.getWorkItems(query.getId(), "", 2);
                 if (workItems != null) {
                     for (WorkItem wi : workItems) {
                         if (firstWorkItem == null) firstWorkItem = wi;
@@ -652,9 +652,9 @@ public class TFSClient {
             }
         }
 
-        System.out.println("Retrieving Work Item: " + firstWorkItem.getId().toString() + "...");
+        System.out.println("Retrieving Work Item: " + firstWorkItem.getId() + "...");
         try {
-            WorkItem wi = tfs.getWorkItem(firstWorkItem.getId().toString());
+            WorkItem wi = tfs.getWorkItem(firstWorkItem.getId());
             System.out.println("Found Work Item: " + wi.getId());
             System.out.println("Title: " + wi.getTitle());
             System.out.println("State: " + wi.getState());
@@ -664,11 +664,11 @@ public class TFSClient {
         } catch (TFSClientException e) {
             System.out.print(e.toString());
         }
-*/
+
         System.out.println("Retrieving TFS Release Definitions...");
         List<ReleaseDefinition> releaseDefinitions = null;
         try {
-            releaseDefinitions = tfs.getReleaseDefinitions(firstProj.getProjectId());
+            releaseDefinitions = tfs.getReleaseDefinitions(firstProj.getId());
             for (ReleaseDefinition rd : releaseDefinitions) {
                 if (firstReleaseDefinition == null) firstReleaseDefinition = rd;
                 System.out.println("Found Release Definition: " + rd.getId() + " - " + rd.getTitle());
@@ -681,10 +681,10 @@ public class TFSClient {
         System.out.println("Retrieving TFS Releases...");
         List<Release> releases = null;
         try {
-            releases = tfs.getReleases(firstProj.getProjectId(), firstReleaseDefinition.getId().toString());
+            releases = tfs.getReleases(firstProj.getId(), firstReleaseDefinition.getId());
             for (Release r : releases) {
                 if (firstRelease == null) firstRelease = r;
-                System.out.println("Found Release: " + r.getId().toString() + " - " + r.getTitle());
+                System.out.println("Found Release: " + r.getId() + " - " + r.getTitle());
                 System.out.println("Status: " + r.getState());
                 for (Environment e : r.getEnvironments()) {
                     if (firstEnvironment == null) { firstEnvironment = e; }
@@ -697,7 +697,7 @@ public class TFSClient {
 
         System.out.println("Deploying Release " + firstRelease.getTitle() + " to " + firstEnvironment.getTitle());
         try {
-            Release release = tfs.deployRelease(firstProj.getProjectId(), firstRelease.getId().toString(), firstEnvironment.getId().toString());
+            Release release = tfs.deployRelease(firstProj.getId(), firstRelease.getId(), firstEnvironment.getId());
             System.out.println("Release " + release.getTitle() + " has status: " + release.getState());
         } catch (TFSClientException e) {
             System.out.print(e.toString());
@@ -708,8 +708,8 @@ public class TFSClient {
         while (pollCount < 100) {
             try {
                 Thread.sleep(6000);
-                deployStatus = tfs.getReleaseEnvironmentStatus(firstProj.getProjectId(), firstRelease.getId().toString(),
-                        firstEnvironment.getId().toString());
+                deployStatus = tfs.getReleaseEnvironmentStatus(firstProj.getId(), firstRelease.getId(),
+                        firstEnvironment.getId());
                 System.out.println("Environment Deployment Status = " + deployStatus);
             } catch (TFSClientException e) {
                 logger.debug ("Error checking release status ({}) - {}", firstRelease.getId(), e.getMessage());

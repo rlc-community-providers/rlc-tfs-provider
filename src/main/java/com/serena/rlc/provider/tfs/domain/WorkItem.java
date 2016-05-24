@@ -47,7 +47,7 @@ public class WorkItem extends TFSObject {
 
     }
 
-    public WorkItem(Long id, String title, String description, String status, String url) {
+    public WorkItem(String id, String title, String description, String status, String url) {
         this.setId(id);
         this.setTitle(title);
         this.setDescription(description);
@@ -173,7 +173,7 @@ public class WorkItem extends TFSObject {
             JSONArray jsonArray = (JSONArray) getJSONValue((JSONObject) parsedObject, "workItems");
             for (Object object : jsonArray) {
                 WorkItem wiObj = new WorkItem();
-                wiObj.setId((Long) getJSONValue((JSONObject) object, "id"));
+                wiObj.setId(String.valueOf((Long) getJSONValue((JSONObject) object, "id")));
                 wiObj.setUrl((String) getJSONValue((JSONObject) object, "url"));
                 wiList.add(wiObj);
             }
@@ -202,7 +202,7 @@ public class WorkItem extends TFSObject {
 
     public static WorkItem parseSingle(JSONObject jsonObject) {
         WorkItem wiObj = new WorkItem();
-        wiObj.setId((Long) getJSONValue(jsonObject, "id"));
+        wiObj.setId(String.valueOf((Long) getJSONValue(jsonObject, "id")));
         wiObj.setRev((Long) getJSONValue(jsonObject, "rev"));
         wiObj.setUrl((String) getJSONValue(jsonObject, "url"));
         if (jsonObject.containsKey("fields")) {
@@ -258,4 +258,8 @@ public class WorkItem extends TFSObject {
         return wiObj;
     }
 
+    @Override
+    public String toString() {
+        return "WorkItem{" + "id=" + super.getId() + ", name=" + super.getTitle() + '}';
+    }
 }

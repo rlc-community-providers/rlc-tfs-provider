@@ -34,7 +34,7 @@ public class Release extends TFSObject {
     private List<Environment> environments;
 
     public Release(){}
-    public Release(Long id, String name) {
+    public Release(String id, String name) {
         super.setId(id);
         super.setTitle(name);
     }
@@ -89,7 +89,7 @@ public class Release extends TFSObject {
         Release rObj = null;
         if (jsonObject != null) {
             rObj = new Release(
-                (Long) getJSONValue(jsonObject, "id"),
+                String.valueOf((Long) getJSONValue(jsonObject, "id")),
                 (String) getJSONValue(jsonObject, "name"));
             rObj.setState((String) jsonObject.get("status"));
             // TODO: Set release definition id

@@ -17,7 +17,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.annotation.XmlRootElement;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,22 +31,12 @@ public class Project extends TFSObject {
 
     private final static Logger logger = LoggerFactory.getLogger(Project.class);
 
-    private String projectId;
-
-    public void setProjectId(String projectId) {
-        this.projectId = projectId;
-    }
-
-    public String getProjectId() {
-        return this.projectId;
-    }
-
     public Project() {
 
     }
 
     public Project(String id, String name) {
-        this.setProjectId(id);
+        super.setId(id);
         super.setTitle(name);
     }
 
@@ -96,8 +85,7 @@ public class Project extends TFSObject {
 
     @Override
     public String toString() {
-        return "Project{" + "id=" + getProjectId() + ", name=" + super.getTitle() + '}';
+        return "Project{" + "id=" + super.getId() + ", name=" + super.getTitle() + '}';
     }
-
 
 }

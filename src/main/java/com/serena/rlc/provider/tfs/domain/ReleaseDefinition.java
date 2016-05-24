@@ -39,7 +39,7 @@ public class ReleaseDefinition extends TFSObject {
 
     }
 
-    public ReleaseDefinition(Long id, String name) {
+    public ReleaseDefinition(String id, String name) {
         super.setId(id);
         super.setTitle(name);
     }
@@ -93,7 +93,7 @@ public class ReleaseDefinition extends TFSObject {
         ReleaseDefinition rdObj = null;
         if (jsonObject != null) {
             rdObj = new ReleaseDefinition(
-                    (Long) getJSONValue(jsonObject, "id"),
+                    String.valueOf((Long) getJSONValue(jsonObject, "id")),
                     (String) getJSONValue(jsonObject, "name"));
             rdObj.setRev((Long) getJSONValue(jsonObject, "rev"));
             rdObj.setUrl((String) getJSONValue(jsonObject, "url"));

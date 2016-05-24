@@ -31,16 +31,16 @@ public class Query extends TFSObject {
 
     private final static Logger logger = LoggerFactory.getLogger(Query.class);
 
-    private String queryId;
     private String path;
     private boolean isFolder;
 
-    public void setQueryId(String queryId) {
-        this.queryId = queryId;
+    public Query() {
+
     }
-    
-    public String getQueryId() {
-        return this.queryId;
+
+    public Query(String id, String name) {
+        super.setId(id);
+        super.setTitle(name);
     }
 
     public void setPath(String path) {
@@ -91,8 +91,10 @@ public class Query extends TFSObject {
     public static Query parseSingle(JSONObject jsonObject) {
         Query queryObj = new Query();
         if (jsonObject != null) {
-            queryObj.setQueryId((String) getJSONValue(jsonObject, "id"));
-            queryObj.setTitle((String) getJSONValue(jsonObject, "name"));
+            queryObj = new Query(
+                (String) getJSONValue(jsonObject, "id"),
+                (String) getJSONValue(jsonObject, "name")
+            );
             queryObj.setPath((String) getJSONValue(jsonObject, "path"));
             queryObj.setUrl((String) getJSONValue(jsonObject, "url"));
             if (jsonObject.containsKey("isFolder")) {
@@ -100,6 +102,11 @@ public class Query extends TFSObject {
             }
         }
         return queryObj;
+    }
+
+    @Override
+    public String toString() {
+        return "Query{" + "id=" + super.getId() + ", name=" + super.getTitle() + '}';
     }
 
 }
