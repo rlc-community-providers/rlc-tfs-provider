@@ -46,7 +46,7 @@ public class TFSRequestProvider extends TFSBaseServiceProvider implements IReque
     
     @ConfigProperty(name = "request_provider_name", displayName = "Request Provider Name",
             description = "provider name",
-            defaultValue = "TFS Work Item Provider",
+            defaultValue = "TFS Request Provider",
             dataType = DataType.TEXT)
     private String providerName;
 
@@ -105,11 +105,11 @@ public class TFSRequestProvider extends TFSBaseServiceProvider implements IReque
     // -------------------------------------------------------------------------------
     //================================================================================
 
-    @Service(name = FIND_REQUESTS, displayName = "Find Work Items", description = "Find TFS Work Items.")
+    @Service(name = FIND_REQUESTS, displayName = "Find Work Items", description = "Find TFS Work Items")
         @Params(params = {
-            @Param(fieldName = PROJECT, displayName = "Project", description = "TFS project name", required = true, dataType = DataType.SELECT),
-            @Param(fieldName = QUERY, displayName = "Query", description = "TFS Query name", required = true, dataType = DataType.SELECT),
-            @Param(fieldName = TITLE_FILTER, displayName = "Title Filter", description = "Work Item Title filter.")
+            @Param(fieldName = PROJECT, displayName = "Project", description = "TFS project", required = true, dataType = DataType.SELECT),
+            @Param(fieldName = QUERY, displayName = "Query", description = "TFS Query", required = true, dataType = DataType.SELECT),
+            @Param(fieldName = TITLE_FILTER, displayName = "Title Filter", description = "Work Item Title filter")
     })
     public ProviderInfoResult findRequests(List<Field> properties, Long startIndex, Long resultCount) throws ProviderException {
         Field field = Field.getFieldByName(properties, PROJECT);
@@ -174,7 +174,7 @@ public class TFSRequestProvider extends TFSBaseServiceProvider implements IReque
         return new ProviderInfoResult(0, list.size(), list.toArray(new ProviderInfo[list.size()]));
     }
 
-    @Service(name = GET_REQUEST, displayName = "Get Work Item", description = "Get TFS Work Item information.")
+    @Service(name = GET_REQUEST, displayName = "Get Work Item", description = "Get TFS Work Item information")
         @Params(params = {
             @Param(fieldName = REQUEST_ID, displayName = "Work Item Id", description = "TFS Work Item identifier", required = true, deployUnit = false, dataType = DataType.SELECT)
     })

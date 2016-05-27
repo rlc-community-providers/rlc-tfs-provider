@@ -26,10 +26,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringTokenizer;
 
 
 /**
- * TFS Release Manager Base Service Provider
+ * TFS Base Service Provider
  * @author klee@serena.com
  */
 public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
@@ -41,6 +42,13 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
     final static String RELEASE_DEFINITION = "releaseDefinition";
     final static String RELEASE = "release";
     final static String ENVIRONMENT = "environment";
+    final static String ENVIRONMENT_USERNAME = "environmentUsername";
+    final static String ENVIRONMENT_PASSWORD = "environmentPassword";
+    final static String BUILD_DEFINITION = "buildDefinition";
+    final static String BUILD_QUEUE = "buildQueue";
+    final static String NAME_FILTER = "nameFilter";
+    final static String QUEUE_TYPE = "queueType";
+    final static String BUILD = "build";
 
     //================================================================================
     // Configuration Properties
@@ -57,13 +65,19 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
     private String tfsUrl;
 
     @ConfigProperty(name = "tfs_api_version", displayName = "TFS API Version",
-            description = "The TFS API Version.",
+            description = "TFS API Version.",
             defaultValue = "1.0",
             dataType = DataType.TEXT)
     private String tfsApiVersion;
 
+    @ConfigProperty(name = "tfs_build_api_version", displayName = "Build API Version",
+            description = "TFS Build API Version.",
+            defaultValue = "2.0",
+            dataType = DataType.TEXT)
+    private String tfsBuildApiVersion;
+
     @ConfigProperty(name = "tfs_collection", displayName = "TFS Collection",
-            description = "The TFS domain to query.",
+            description = "TFS Collection.",
             defaultValue = "DefaultCollection",
             dataType = DataType.TEXT)
     private String tfsCollection;
@@ -74,8 +88,8 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
             dataType = DataType.TEXT)
     private String serviceUser;
 
-    @ConfigProperty(name = "tfs_servicepassword", displayName = "Password",
-            description = "TFS service password.",
+    @ConfigProperty(name = "tfs_servicepassword", displayName = "Password/Token",
+            description = "TFS service password/token",
             defaultValue = "",
             dataType = DataType.PASSWORD)
     private String servicePassword;
@@ -156,6 +170,21 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
         this.tfsApiVersion = tfsApiVersion;
     }
 
+    public String getTfsBuildApiVersion() {
+        return tfsBuildApiVersion;
+    }
+
+    @Autowired(required = false)
+    public void setTfsBuildApiVersion(String tfsBuildApiVersion) {
+        if (!StringUtils.isEmpty(tfsBuildApiVersion)) {
+            this.tfsBuildApiVersion = tfsBuildApiVersion.trim();
+        }
+        else {
+            this.tfsBuildApiVersion = "2.0";
+        }
+    }
+
+
     public String getTfsCollection() {
         return tfsCollection;
     }
@@ -201,7 +230,7 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
     // to the provider
     //================================================================================
 
-    @Getter(name = PROJECT, displayName = "Project", description = "Get TFS project field values.")
+    @Getter(name = PROJECT, displayName = "Project", description = "Get TFS project.")
     public FieldInfo getProjectFieldValues(String fieldName, List<Field> properties) throws ProviderException {
         FieldInfo fieldInfo = new FieldInfo(fieldName);
         setTFSClientConnectionDetails();
@@ -233,9 +262,9 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
         }
     }
 
-    @Getter(name = QUERY, displayName = "Query", description = "Get TFS Query field values.")
+    @Getter(name = QUERY, displayName = "Query", description = "Get TFS Work Item Query.")
         @Params(params = {
-            @Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS project field values", required = true, dataType = DataType.SELECT)
+            @Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS Project", required = true, dataType = DataType.SELECT)
     })
     public FieldInfo getQueryFieldValues(String fieldName, List<Field> properties) throws ProviderException {
         FieldInfo fieldInfo = new FieldInfo(fieldName);
@@ -274,10 +303,9 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
         }
     }
 
-
-    @Getter(name = RELEASE_DEFINITION, displayName = "Release Definition", description = "Get TFS Release Definition field values.")
+    @Getter(name = RELEASE_DEFINITION, displayName = "Release Definition", description = "Get TFS Release Definition.")
         @Params(params = {
-            @Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS Project field values", required = true, dataType = DataType.SELECT)
+            @Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS Project", required = true, dataType = DataType.SELECT)
     })
     public FieldInfo getReleaseDefinitionFieldValues(String fieldName, List<Field> properties) throws ProviderException {
         FieldInfo fieldInfo = new FieldInfo(fieldName);
@@ -316,10 +344,10 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
         }
     }
 
-    @Getter(name = RELEASE, displayName = "Release", description = "Get TFS Release field values.")
+    @Getter(name = RELEASE, displayName = "Release", description = "Get TFS Release.")
         @Params(params = {
-            @Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS Project field values", required = true, dataType = DataType.SELECT),
-            @Param(fieldName = RELEASE_DEFINITION, displayName = "Release Definition", description = "Get TFS Release Definition field values", required = true, dataType = DataType.SELECT)
+            @Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS Project", required = true, dataType = DataType.SELECT),
+            @Param(fieldName = RELEASE_DEFINITION, displayName = "Release Definition", description = "Get TFS Release Definition", required = true, dataType = DataType.SELECT)
     })
     public FieldInfo getReleaseFieldValues(String fieldName, List<Field> properties) throws ProviderException {
         FieldInfo fieldInfo = new FieldInfo(fieldName);
@@ -364,10 +392,10 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
         }
     }
 
-    @Getter(name = ENVIRONMENT, displayName = "Environment", description = "Get TFS Release Environmentfield values.")
+    @Getter(name = ENVIRONMENT, displayName = "Environment", description = "Get TFS Release Environment.")
         @Params(params = {
-            @Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS Project field values", required = true, dataType = DataType.SELECT),
-            @Param(fieldName = RELEASE, displayName = "Release", description = "Get TFS Release field values", required = true, dataType = DataType.SELECT)
+            @Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS Project", required = true, dataType = DataType.SELECT),
+            @Param(fieldName = RELEASE, displayName = "Release", description = "Get TFS Release", required = true, dataType = DataType.SELECT)
     })
     public FieldInfo getEnvironmentFieldValues(String fieldName, List<Field> properties) throws ProviderException {
         FieldInfo fieldInfo = new FieldInfo(fieldName);
@@ -412,6 +440,126 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
         }
     }
 
+    @Getter(name = BUILD_DEFINITION, displayName = "Build Definition", description = "Get TFS Build Definition.")
+    @Params(params = {
+            @Param(fieldName = PROJECT, displayName = "Project", description = "Get TFS Project field", required = true, dataType = DataType.SELECT),
+    })
+    public FieldInfo getBuildDefinitionFieldValues(String fieldName, List<Field> properties) throws ProviderException {
+        FieldInfo fieldInfo = new FieldInfo(fieldName);
+        setTFSClientConnectionDetails();
+
+        Field field = Field.getFieldByName(properties, PROJECT);
+        if (field == null || StringUtils.isEmpty(field.getValue()))
+            throw new ProviderException("Missing required property: " + PROJECT);
+
+        String projectId = field.getValue();
+
+        String startsWith = "";
+/*        field = Field.getFieldByName(properties, NAME_FILTER);
+        if (field != null || StringUtils.isNotEmpty(field.getValue())) {
+            startsWith = field.getValue();
+        }
+*/
+        try {
+            List<BuildDefinition> tfsBuildDefs = tfsClient.getBuildDefinitions(projectId, startsWith);
+            if (tfsBuildDefs == null || tfsBuildDefs.size() < 1) {
+                return null;
+            }
+
+            List<FieldValueInfo> values = new ArrayList<>();
+            FieldValueInfo value;
+            for (BuildDefinition tfsBds : tfsBuildDefs) {
+
+                value = new FieldValueInfo(tfsBds.getId(), tfsBds.getTitle());
+                if (tfsBds.getId() == null || StringUtils.isEmpty(tfsBds.getId())) {
+                    value.setId(tfsBds.getTitle());
+                }
+
+                value.setDescription(tfsBds.getTitle());
+                values.add(value);
+            }
+
+            fieldInfo.setValues(values);
+            return fieldInfo;
+        } catch (TFSClientException ex) {
+            logger.error("Unable to retrieve TFS Build Definitions: {}", ex.getLocalizedMessage());
+            throw new ProviderException(ex.getLocalizedMessage());
+        }
+    }
+
+    @Getter(name = BUILD_QUEUE, displayName = "Build Queue", description = "Get TFS Build Queue field values.")
+    @Params(params = {
+//            @Param(fieldName = QUEUE_TYPE, displayName = "Queue Type", description = "Get TFS Build Queue Type", required = true, dataType = DataType.SELECT),
+//            @Param(fieldName = NAME_FILTER, displayName = "Name Filter", description = "Name the Definition starts with", required = false, dataType = DataType.TEXT)
+    })
+    public FieldInfo getBuildQueueFieldValues(String fieldName, List<Field> properties) throws ProviderException {
+        FieldInfo fieldInfo = new FieldInfo(fieldName);
+        setTFSClientConnectionDetails();
+
+        // TODO: allow user to select queue type
+        String queueType = "";
+        Field field = Field.getFieldByName(properties, QUEUE_TYPE);
+        if (field != null && StringUtils.isNotEmpty(field.getValue()))
+            queueType = field.getValue();
+
+        // TODO: allow user to filter queue type by name
+        String startsWith = "";
+        //field = Field.getFieldByName(properties, NAME_FILTER);
+        //if (field != null || StringUtils.isNotEmpty(field.getValue())) {
+        //    startsWith = field.getValue();
+        //}
+
+        try {
+            List<BuildQueue> tfsBuildQueues = tfsClient.getBuildQueues(queueType, startsWith);
+            if (tfsBuildQueues == null || tfsBuildQueues.size() < 1) {
+                return null;
+            }
+
+            List<FieldValueInfo> values = new ArrayList<>();
+            FieldValueInfo value;
+            for (BuildQueue tfsBqs : tfsBuildQueues) {
+
+                value = new FieldValueInfo(tfsBqs.getId(), tfsBqs.getTitle());
+                if (tfsBqs.getId() == null || StringUtils.isEmpty(tfsBqs.getId())) {
+                    value.setId(tfsBqs.getTitle());
+                }
+
+                value.setDescription(tfsBqs.getTitle());
+                values.add(value);
+            }
+
+            fieldInfo.setValues(values);
+            return fieldInfo;
+        } catch (TFSClientException ex) {
+            logger.error("Unable to retrieve TFS Build Queues: {}", ex.getLocalizedMessage());
+            throw new ProviderException(ex.getLocalizedMessage());
+        }
+    }
+
+    @Getter(name = QUEUE_TYPE, displayName = "Queue Type", description = "Get Build Queue Type.")
+    public FieldInfo getQueueTypeFieldValues(String fieldName, List<Field> properties) throws ProviderException {
+        //TODO: queueTypes in provider configuration
+        String queueTypes = "buildController,agentPool";
+        if (StringUtils.isEmpty(queueTypes)) {
+            return null;
+        }
+
+        StringTokenizer st = new StringTokenizer(queueTypes, ",;");
+        FieldInfo fieldInfo = new FieldInfo(fieldName);
+        List<FieldValueInfo> values = new ArrayList<>();
+        FieldValueInfo value;
+        String qType;
+        while (st.hasMoreElements()) {
+            qType = (String) st.nextElement();
+            qType = qType.trim();
+            value = new FieldValueInfo(qType, qType);
+            values.add(value);
+        }
+
+        fieldInfo.setValues(values);
+        return fieldInfo;
+    }
+
     //================================================================================
     // Additional Public Methods
     //================================================================================
@@ -433,7 +581,7 @@ public abstract class TFSBaseServiceProvider implements IBaseServiceProvider {
     }
 
     public void setTFSClientConnectionDetails() {
-        getTFSClient().createConnection(getSession(), getTfsUrl(), getTfsApiVersion(), null, null, getTfsCollection(), getServiceUser(), getServicePassword());
+        getTFSClient().createConnection(getSession(), getTfsUrl(), getTfsApiVersion(), null, null, null, getTfsCollection(), getServiceUser(), getServicePassword());
     }
 
 }

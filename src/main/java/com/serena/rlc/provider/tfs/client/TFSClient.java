@@ -44,7 +44,7 @@ public class TFSClient {
     private static final Logger logger = LoggerFactory.getLogger(TFSClient.class);
 
     public static String DEFAULT_HTTP_CONTENT_TYPE = "application/json";
-    public enum VisualStudioApi { TFS_API, RM_API }
+    public enum VisualStudioApi { TFS_API, TFSBUILD_API, RM_API }
 
     private String tfsUrl;
     private String vsrmUrl;
@@ -54,13 +54,14 @@ public class TFSClient {
     private String tfsProject;
     private String tfsApiVersion;
     private String vsrmApiVersion;
+    private String tfsBuildApiVersion;
     private SessionData session;
 
     public TFSClient() {
     }
 
-    public TFSClient(SessionData session, String tfsUrl, String tfsApiVersion, String vsrmUrl, String vsrmApiVersion, String collection, String username, String password) {
-        this.createConnection(session, tfsUrl, tfsApiVersion, vsrmUrl, vsrmApiVersion, collection, username, password);
+    public TFSClient(SessionData session, String tfsUrl, String tfsApiVersion, String vsrmUrl, String vsrmApiVersion, String tfsBuildApiVersion, String collection, String username, String password) {
+        this.createConnection(session, tfsUrl, tfsApiVersion, vsrmUrl, vsrmApiVersion, tfsBuildApiVersion, collection, username, password);
     }
 
     public SessionData getSession() {
@@ -115,8 +116,16 @@ public class TFSClient {
         return vsrmApiVersion;
     }
 
-    public void setVsrmApiVersion(String apiVersion) {
-        this.vsrmApiVersion = apiVersion;
+    public void setVsrmApiVersion(String vsrmApiVersion) {
+        this.vsrmApiVersion = vsrmApiVersion;
+    }
+
+    public void setTfsBuildApiVersion(String tfsBuildApiVersion) {
+        this.tfsBuildApiVersion = tfsBuildApiVersion;
+    }
+
+    public String getTfsBuildApiVersion() {
+        return tfsBuildApiVersion;
     }
 
     public String getTFSUsername() {
@@ -142,16 +151,18 @@ public class TFSClient {
      * @param tfsApiVersion  the version of the TFS REST API to use
      * @param vsrmUrl  the url to VSRM, e.g. https://servername.vsrm
      * @param vsrmApiVersion  the version of the VSRM REST API to use
+     * @param tfsBuildApiVersion  the version of the TFS Build REST API to use
      * @param collection  the TFS collection
      * @param username  the username of the TFS user
      * @param password  the password/private token of the TFS user
      */
-    public void createConnection(SessionData session, String tfsUrl, String tfsApiVersion, String vsrmUrl, String vsrmApiVersion, String collection, String username, String password) {
+    public void createConnection(SessionData session, String tfsUrl, String tfsApiVersion, String vsrmUrl, String vsrmApiVersion, String tfsBuildApiVersion, String collection, String username, String password) {
         this.session = session;
         this.tfsUrl = tfsUrl;
         this.tfsApiVersion = tfsApiVersion;
         this.vsrmUrl = vsrmUrl;
         this.vsrmApiVersion = vsrmApiVersion;
+        this.tfsBuildApiVersion = tfsBuildApiVersion;
         this.tfsCollection = collection;
         this.tfsProject = "";
         this.tfsUsername = username;
@@ -253,6 +264,129 @@ public class TFSClient {
     }
 
     /**
+     * Get a list of Build Definitions for the specified Project.
+     *
+     * @param projectId  the identifier of the project
+     * @return a list of build definitions
+     */
+    public List<BuildDefinition> getBuildDefinitions(String projectId, String startsWith) throws TFSClientException {
+        logger.debug("Retrieving TFS Build Definitions for Project \"{}\" starting with \"{}\"", projectId, startsWith);
+        this.setTFSProject(projectId);
+
+        String params = "";
+        if (startsWith != null && StringUtils.isNotEmpty(startsWith)) {
+            params = "name="+startsWith;
+        }
+
+        String buildResponse = processGet(VisualStudioApi.TFSBUILD_API, getTFSCollection() + "/" + projectId + "/_apis/build/definitions", params);
+        logger.debug(buildResponse);
+
+        List<BuildDefinition> buildDefinitions = BuildDefinition.parse(buildResponse);
+        return buildDefinitions;
+    }
+
+    /**
+     * Get a list of Build Queues for the specified Project.
+     *
+     * @param projectId  the identifier of the project
+     * @return a list of build definitions
+     */
+    public List<BuildQueue> getBuildQueues(String queueType, String startsWith) throws TFSClientException {
+        logger.debug("Retrieving TFS Build Queues of type \"{}\" starting with \"{}\"", queueType, startsWith);
+
+        String params = "";
+        if (queueType != null && StringUtils.isNotEmpty(queueType)) {
+            params = "type=" + queueType;
+        }
+        if (startsWith != null && StringUtils.isNotEmpty(startsWith)) {
+            params += "&name="+startsWith;
+        }
+        String queueResponse = processGet(VisualStudioApi.TFSBUILD_API, getTFSCollection() + "/_apis/build/queues", params);
+        logger.debug(queueResponse);
+
+        List<BuildQueue> buildQueues = BuildQueue.parse(queueResponse);
+        return buildQueues;
+    }
+
+    /**
+     * Get a list of Builds for a Build Definition
+     *
+     * @param projectId  the identifier of the project
+     * @param buildDefinitionId  the identifier of the build definition
+     * @param statusFilter
+     * @return a list of releases
+     */
+    public List<Build> getBuilds(String projectId, String buildDefinitionId, String statusFilter, String resultFilter, int resultLimit) throws TFSClientException {
+        logger.debug("Retrieving TFS Builds for Builds Definition \"{}\" in Project \"{}\"", buildDefinitionId, projectId);
+        this.setTFSProject(projectId);
+
+        String maxBuilds = "100";
+        if (resultLimit > 0) {
+            maxBuilds = String.valueOf(resultLimit);
+        }
+
+        String buildResponse = processGet(VisualStudioApi.TFSBUILD_API, getTFSCollection() + "/" + projectId + "/_apis/build/builds",
+                "definitions="+buildDefinitionId+"&statusFilter="+statusFilter+"&resultFilter="+resultFilter+"&maxBuildsPerDefinition="+maxBuilds);
+        logger.debug(buildResponse);
+
+        List<Build> builds = Build.parse(buildResponse);
+        return builds;
+    }
+
+    /**
+     * Get a specific Build
+     *
+     * @param projectId  the identifier of the project
+     * @param buildId  the identifier of the build
+     * @return the release
+     */
+    public Build getBuild(String projectId, String buildId) throws TFSClientException {
+        logger.debug("Retrieving TFS Build \"{}\" in Project \"{}\"", buildId, projectId);
+        this.setTFSProject(projectId);
+
+        String buildResponse = processGet(VisualStudioApi.TFSBUILD_API, getTFSCollection() + "/" + projectId + "/_apis/build/builds/" + buildId, "");
+        logger.debug(buildResponse);
+
+        Build build = Build.parseSingle(buildResponse);
+        return build;
+    }
+
+    /**
+     * BuildQueue a new build for the specified definition.
+     *
+     * @param projectId  the identifier of the project
+     * @param buildDefinitionId  the identifier of the build definition
+     * @param queueId  the identifier of the queue to use (optional)
+     * @param branchId  the identifier of the branch to use (optional)
+     * @return the Build
+     * @throws TFSClientException
+     */
+    public Build queueBuild(String projectId, String buildDefinitionId, String queueId, String branchId) throws TFSClientException {
+        logger.debug("Queueing TFS Build Definition \"{}\" to queue \"{}\" in Project \"{}\"", buildDefinitionId, queueId, projectId);
+        this.setTFSProject(projectId);
+
+        JSONObject definition = new JSONObject();
+        definition.put("id", Long.parseLong(buildDefinitionId));
+
+        JSONObject jsonBody = new JSONObject();
+        jsonBody.put("definition", definition);
+
+        if (queueId != null && StringUtils.isNotEmpty(queueId)) {
+            jsonBody.put("queue.id", Long.parseLong(queueId));
+        }
+        if (branchId != null && StringUtils.isNotEmpty(branchId)) {
+            jsonBody.put("sourceBranch", branchId);
+        }
+
+        String buildResponse = processPost(VisualStudioApi.TFSBUILD_API, getTFSCollection() + "/" + projectId + "/_apis/build/builds",
+                "", jsonBody.toJSONString());
+        logger.debug(buildResponse);
+
+        Build build = Build.parseSingle(buildResponse);
+        return build;
+    }
+
+    /**
      * Get a list of Release Definitions for the specified Project.
      *
      * @param projectId  the identifier of the project
@@ -344,7 +478,7 @@ public class TFSClient {
     public Release deployRelease(String projectId, String releaseId, String environmentId) throws TFSClientException {
         logger.debug("Deploying TFS Release \"{}\" to environment \"{}\" in Project \"{}\"", releaseId, environmentId, projectId);
         this.setTFSProject(projectId);
-        this.setVsrmApiVersion("3.0-preview.2"); // hack for deployment
+        this.setVsrmApiVersion("3.0-preview.2"); // TODO: hack for deployment
 
         JSONObject jsonBody = new JSONObject();
         jsonBody.put("status", "InProgress"); // 2=inprogress
@@ -534,6 +668,8 @@ public class TFSClient {
         if (whichApi == VisualStudioApi.RM_API) {
             base = getVSRMUrl();
             apiVersion = getVsrmApiVersion();
+        } else if (whichApi == VisualStudioApi.TFSBUILD_API) {
+            apiVersion = getTfsBuildApiVersion();
         }
 
         // trim and encode path
@@ -594,7 +730,7 @@ public class TFSClient {
     // Testing API
     static public void main(String[] args) {
         TFSClient tfs = new TFSClient(null, "https://digitalparkingsolutions.visualstudio.com",
-                "1.0", "https://digitalparkingsolutions.vsrm.visualstudio.com", "3.0-preview.1",
+                "1.0", "https://digitalparkingsolutions.vsrm.visualstudio.com", "3.0-preview.1", "2.0",
                 "DefaultCollection", "kevinalee", "67popgoaxbdm2ducvhaf54fgmtzbouronq22rfdb6fddt542c3va");
 
         Project firstProj = null;
@@ -603,6 +739,9 @@ public class TFSClient {
         ReleaseDefinition firstReleaseDefinition = null;
         Release firstRelease = null;
         Environment firstEnvironment = null;
+        BuildDefinition firstBuildDefinition = null;
+        BuildQueue firstBuildQueue = null;
+        Build firstBuild = null;
 
         System.out.println("Retrieving TFS Projects...");
         List<Project> projects = null;
@@ -729,5 +868,85 @@ public class TFSClient {
         } else {
             System.out.println("Release " + firstRelease.getTitle() + " has failed/rejected or its status cannot be retrieved.");
         }
+
+        System.out.println("Retrieving TFS Build Definitions...");
+        List<BuildDefinition> buildDefinitions = null;
+        try {
+            buildDefinitions = tfs.getBuildDefinitions(firstProj.getId(), "");
+            for (BuildDefinition bd : buildDefinitions) {
+                if (firstBuildDefinition == null) firstBuildDefinition = bd;
+                System.out.println("Found Build Definition: " + bd.getId() + " - " + bd.getTitle());
+                System.out.println("URL: " + bd.getUrl());
+            }
+        } catch (TFSClientException e) {
+            System.out.print(e.toString());
+        }
+
+        System.out.println("Retrieving TFS Build Queues...");
+        List<BuildQueue> buildQueues = null;
+        try {
+            buildQueues = tfs.getBuildQueues("buildController", "");
+            for (BuildQueue bq : buildQueues) {
+                if (firstBuildQueue == null) firstBuildQueue = bq;
+                System.out.println("Found Build Queue: " + bq.getId() + " - " + bq.getTitle());
+                System.out.println("URL: " + bq.getUrl());
+            }
+        } catch (TFSClientException e) {
+            System.out.print(e.toString());
+        }
+
+        System.out.println("Retrieving TFS Builds...");
+        List<Build> builds = null;
+        try {
+            builds = tfs.getBuilds(firstProj.getId(), firstBuildDefinition.getId(), "", "", 50);
+            for (Build b : builds) {
+                if (firstBuild == null) firstBuild = b;
+                System.out.println("Found Build: " + b.getId() + " - " + b.getBuildNumber());
+                System.out.println("Status: " + b.getState());
+                System.out.println("Result: " + b.getBuildResult());
+            }
+        } catch (TFSClientException e) {
+            System.out.print(e.toString());
+        }
+
+        Build queuedBuild = null;
+        System.out.println("Queuing Build for Definition " + firstBuildDefinition.getTitle());
+        try {
+            queuedBuild = tfs.queueBuild(firstProj.getId(), firstBuildDefinition.getId(), firstBuildQueue.getId(), null);
+            System.out.println("Build " + queuedBuild.getBuildNumber() + " has status: " + queuedBuild.getState());
+        } catch (TFSClientException e) {
+            System.out.print(e.toString());
+        }
+
+        pollCount = 0;
+        String buildStatus = null;
+        String buildResult = null;
+        while (pollCount < 100) {
+            try {
+                Thread.sleep(6000);
+                Build tmpBuild = tfs.getBuild(firstProj.getId(), queuedBuild.getId());
+                buildStatus = tmpBuild.getState();
+                System.out.println("Build Status = " + buildStatus);
+                System.out.println("Build Result = " + buildResult);
+            } catch (TFSClientException e) {
+                logger.debug ("Error checking build status ({}) - {}", queuedBuild.getId(), e.getMessage());
+            } catch (InterruptedException e) {
+            }
+            if (buildStatus != null && buildStatus.equals("completed")) {
+                break;
+            }
+
+            pollCount++;
+        }
+
+        if (buildStatus != null && buildStatus.equals("completed")) {
+            System.out.println("Build " + queuedBuild.getId() + " has completed with result " + buildResult);
+        } else {
+            System.out.println("Build " + queuedBuild.getId() + " result cannot be retrieved.");
+        }
+
+
     }
+
+
 }
