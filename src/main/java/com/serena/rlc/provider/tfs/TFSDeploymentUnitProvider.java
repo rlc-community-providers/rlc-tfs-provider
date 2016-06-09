@@ -212,7 +212,7 @@ public class TFSDeploymentUnitProvider extends TFSBaseServiceProvider implements
                     buildDefinitionName, projectName, statusFilter, resultFilter);
             builds = client.getBuilds(projectId, buildDefinitionId, statusFilter, resultFilter, Integer.valueOf(getDeployUnitResultLimit()));
             for (Build b : builds) {
-                list.add(getProviderInfo(b, projectId + ":" + b.getId(), projectName + ":" + b.getBuildNumber()));
+                list.add(getProviderInfo(b, projectId + ":" + b.getId(), projectId));
             }
         } catch (TFSClientException ex) {
             logger.error("Error retrieving Builds: {}", ex.getMessage());
@@ -256,7 +256,7 @@ public class TFSDeploymentUnitProvider extends TFSBaseServiceProvider implements
             return null;
         }
 
-        return getProviderInfo(build, projectId + ":" + build.getId(), build.getBuildNumber());
+        return getProviderInfo(build, projectId + ":" + build.getId(), projectId);
     }
 
     //================================================================================
@@ -310,11 +310,11 @@ public class TFSDeploymentUnitProvider extends TFSBaseServiceProvider implements
 
     //
 
-    private ProviderInfo getProviderInfo(Build build, String id, String title) {
+    private ProviderInfo getProviderInfo(Build build, String id, String projectId) {
         ProviderInfo providerInfo = new ProviderInfo(id, build.getBuildNumber(), "Build", build.getBuildNumber());
         providerInfo.setDescription(build.getBuildNumber());
-        // TODO: set URL to UI URL not JSON
-        providerInfo.setUrl(build.getUrl());
+        providerInfo.setUrl(this.getTfsUrl() + "/" + this.getTfsCollection() + "/" +
+            projectId + "/_build?buildId=" + build.getId() + "&_a=summary");
 
         List<Field> fields = new ArrayList<Field>();
         Field field;
